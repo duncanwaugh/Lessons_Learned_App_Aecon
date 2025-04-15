@@ -44,12 +44,7 @@ st.markdown("""
         
     </style>
 """, unsafe_allow_html=True)
-st.markdown("""
-    <hr style="border: none; height: 2px; background-color: #c8102e;" />
-    <div style='text-align: center; padding: 10px; background-color: #c8102e; color: white; font-size: 0.9rem;'>
-        Built by Aecon | For internal use only
-    </div>
-""", unsafe_allow_html=True)
+
 
 
 # Set up OpenAI client
@@ -311,3 +306,9 @@ if uploaded_file:
                 file_name=os.path.basename(output_path),
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             )
+st.markdown("""
+    <hr style="border: none; height: 2px; background-color: #c8102e;" />
+    <div style='text-align: center; padding: 10px; background-color: #c8102e; color: white; font-size: 0.9rem;'>
+        Built by Aecon | For internal use only
+    </div>
+""", unsafe_allow_html=True)
