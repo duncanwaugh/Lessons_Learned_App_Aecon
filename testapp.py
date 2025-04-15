@@ -264,44 +264,42 @@ def create_lessons_learned_doc_fr(content, output_path, image_paths=None):
 from docx import Document
 from docx.shared import Inches
 
+# Define content parsing function
+
+def parse_sections(content):
+    import re
+    sections = {}
+    current_section = None
+    for line in content.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.endswith(':') and len(line.split()) < 6:
+            current_section = line[:-1].strip()
+            sections[current_section] = []
+        elif current_section:
+            sections[current_section].append(line)
+    return sections
+
 def generate_doc_from_template(content, template_path, output_path, image_paths=None):
-    from docx import Document
-
-    def parse_sections(content):
-        sections = {}
-        current_section = None
-        for line in content.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            if line.endswith(':') and len(line.split()) < 6:
-                current_section = line[:-1].strip()
-                sections[current_section] = []
-            elif current_section:
-                sections[current_section].append(line)
-        return sections
-
     sections = parse_sections(content)
-
     doc = Document(template_path)
 
     replacements = {
         "Title": ' '.join(sections.get("Title", [])),
-        "Aecon Business": ' '.join(sections.get("Aecon Business Sector", [])),
+        "Aecon Business Sector:": ' '.join(sections.get("Aecon Business Sector", [])),
         "Project / Location:": ' '.join(sections.get("Project/Location", [])),
-        "Event Summary:": ' '.join(sections.get("Event Summary", [])),
+        "Date of Event:": ' '.join(sections.get("Date of Event", [])),
+        "Event Summary:": ' '.join(sections.get("Event Summary", []))
     }
 
-    # Replace matching paragraph text
     for p in doc.paragraphs:
         for key, val in replacements.items():
             if key in p.text:
-                inline = p.runs
-                for i in range(len(inline)):
-                    if key in inline[i].text:
-                        inline[i].text = inline[i].text.replace(key, val)
+                for run in p.runs:
+                    if key in run.text:
+                        run.text = run.text.replace(key, val)
 
-    # Replace lessons learned section by adding bullets after placeholder
     for i, p in enumerate(doc.paragraphs):
         if "Lessons Learned to Share" in p.text:
             insert_index = i + 1
@@ -310,7 +308,6 @@ def generate_doc_from_template(content, template_path, output_path, image_paths=
                 insert_index += 1
             break
 
-    # Add supporting images to the end
     if image_paths:
         doc.add_page_break()
         doc.add_heading("Supporting Pictures", level=2)
@@ -325,6 +322,8 @@ def generate_doc_from_template(content, template_path, output_path, image_paths=
                         row_cells[j].text = "[Image failed to load]"
 
     doc.save(output_path)
+
+
 
 # --- Streamlit UI ---
 
