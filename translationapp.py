@@ -233,7 +233,7 @@ uploaded_file = st.file_uploader("Upload Executive Review PPTX", type=['pptx'])
 language = st.selectbox("Choose report language:", ["English", "French (Canadian)"])
 translator = None
 if language == "French (Canadian)":
-    translator = st.radio("Choose translation method:", ["OpenAI", "DeepL"])
+    translator = st.radio("Choose translation method:", ["OpenAI (using my account, cost me 50 cents so far and I've probably ran it 200ish times)", "DeepL (using free version, 500 000 characters/month)"])
 
 if uploaded_file:
     if st.button("📄 Generate Lessons Learned Document"):
