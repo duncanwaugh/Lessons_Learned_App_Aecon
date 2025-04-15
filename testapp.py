@@ -261,58 +261,6 @@ def create_lessons_learned_doc_fr(content, output_path, image_paths=None):
 
     doc.save(output_path)
 
-# --- Streamlit UI ---
-
-uploaded_file = st.file_uploader("Upload Executive Review PPTX", type=['pptx'])
-language = st.selectbox("Choose report language:", ["English", "French (Canadian)"])
-translator = None
-if language == "French (Canadian)":
-    translator = st.radio("Choose translation method:", ["OpenAI", "DeepL"])
-
-use_template = st.checkbox("📑 Use official Aecon Word template", value=True)
-
-generate = st.button("📄 Generate Lessons Learned Document")
-
-if uploaded_file and generate:
-    input_filepath = f'input/{uploaded_file.name}'
-    os.makedirs("input", exist_ok=True)
-    with open(input_filepath, 'wb') as f:
-        f.write(uploaded_file.getbuffer())
-
-    with st.spinner("Extracting content from presentation..."):
-        pptx_text, extracted_images = extract_text_and_images_from_pptx(input_filepath)
-
-    with st.spinner("Generating Lessons Learned summary..."):
-        generated_content = summarize_and_extract(pptx_text)
-
-    if language == "French (Canadian)":
-        with st.spinner("Translating to French (Canadian)..."):
-            if translator == "OpenAI":
-                generated_content = translate_to_french_openai(generated_content)
-            else:
-                generated_content = translate_to_french_deepl(generated_content)
-
-    st.success("✅ Generation Complete!")
-    st.text_area("📝 Generated Content:", generated_content, height=300)
-
-    output_path = f'generated_lessons_learned_{"fr" if language.startswith("French") else "en"}.docx'
-    if use_template:
-        template_path = "lessons learned template.docx"
-        generate_doc_from_template(generated_content, template_path, output_path, extracted_images)
-    else:
-        if language == "French (Canadian)":
-            create_lessons_learned_doc_fr(generated_content, output_path, extracted_images)
-        else:
-            create_lessons_learned_doc(generated_content, output_path, extracted_images)
-
-    with open(output_path, "rb") as file:
-        st.download_button(
-            label="📥 Download Lessons Learned DOCX",
-            data=file,
-            file_name=os.path.basename(output_path),
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
-
 from docx import Document
 from docx.shared import Inches
 
@@ -377,6 +325,60 @@ def generate_doc_from_template(content, template_path, output_path, image_paths=
                         row_cells[j].text = "[Image failed to load]"
 
     doc.save(output_path)
+
+# --- Streamlit UI ---
+
+uploaded_file = st.file_uploader("Upload Executive Review PPTX", type=['pptx'])
+language = st.selectbox("Choose report language:", ["English", "French (Canadian)"])
+translator = None
+if language == "French (Canadian)":
+    translator = st.radio("Choose translation method:", ["OpenAI", "DeepL"])
+
+use_template = st.checkbox("📑 Use official Aecon Word template", value=True)
+
+generate = st.button("📄 Generate Lessons Learned Document")
+
+if uploaded_file and generate:
+    input_filepath = f'input/{uploaded_file.name}'
+    os.makedirs("input", exist_ok=True)
+    with open(input_filepath, 'wb') as f:
+        f.write(uploaded_file.getbuffer())
+
+    with st.spinner("Extracting content from presentation..."):
+        pptx_text, extracted_images = extract_text_and_images_from_pptx(input_filepath)
+
+    with st.spinner("Generating Lessons Learned summary..."):
+        generated_content = summarize_and_extract(pptx_text)
+
+    if language == "French (Canadian)":
+        with st.spinner("Translating to French (Canadian)..."):
+            if translator == "OpenAI":
+                generated_content = translate_to_french_openai(generated_content)
+            else:
+                generated_content = translate_to_french_deepl(generated_content)
+
+    st.success("✅ Generation Complete!")
+    st.text_area("📝 Generated Content:", generated_content, height=300)
+
+    output_path = f'generated_lessons_learned_{"fr" if language.startswith("French") else "en"}.docx'
+    if use_template:
+        template_path = "lessons learned template.docx"
+        generate_doc_from_template(generated_content, template_path, output_path, extracted_images)
+    else:
+        if language == "French (Canadian)":
+            create_lessons_learned_doc_fr(generated_content, output_path, extracted_images)
+        else:
+            create_lessons_learned_doc(generated_content, output_path, extracted_images)
+
+    with open(output_path, "rb") as file:
+        st.download_button(
+            label="📥 Download Lessons Learned DOCX",
+            data=file,
+            file_name=os.path.basename(output_path),
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+
+
 
 # Add custom footer banner
 st.markdown("""
