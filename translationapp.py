@@ -12,6 +12,34 @@ from openai import OpenAI
 # Load environment variables
 load_dotenv()
 
+# Set page config and style
+st.set_page_config(page_title="Aecon Lessons Learned Generator", page_icon="📘", layout="centered")
+
+# Display Aecon logo and style the title
+st.image("AECON.png", width=300)
+st.markdown("""
+    <style>
+        .main {
+            background-color: #ffffff;
+        }
+        .stApp {
+            background-color: #ffffff;
+        }
+        h1, h2, h3, h4, h5 {
+            color: #c8102e;
+        }
+        .stButton>button {
+            background-color: #c8102e;
+            color: white;
+            border: None;
+        }
+        .stDownloadButton>button {
+            background-color: #c8102e;
+            color: white;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # Set up OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
