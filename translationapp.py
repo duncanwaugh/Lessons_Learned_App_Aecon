@@ -40,21 +40,17 @@ st.markdown("""
             body {
             font-family: 'Segoe UI', sans-serif;
         }
-        footer {
-            visibility: visible;
-        }
-        footer:after {
-            content: "Built by Aecon | For internal use only";
-            display: block;
-            position: relative;
-            text-align: center;
-            background-color: #c8102e;
-            color: white;
-            padding: 0.5rem;
-            font-size: 0.9rem;
-        }
+        
+        
     </style>
 """, unsafe_allow_html=True)
+st.markdown("""
+    <hr style="border: none; height: 2px; background-color: #c8102e;" />
+    <div style='text-align: center; padding: 10px; background-color: #c8102e; color: white; font-size: 0.9rem;'>
+        Built by Aecon | For internal use only
+    </div>
+""", unsafe_allow_html=True)
+
 
 # Set up OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
