@@ -37,6 +37,22 @@ st.markdown("""
             background-color: #c8102e;
             color: white;
         }
+            body {
+            font-family: 'Segoe UI', sans-serif;
+        }
+        footer {
+            visibility: visible;
+        }
+        footer:after {
+            content: "Built by Aecon | For internal use only";
+            display: block;
+            position: relative;
+            text-align: center;
+            background-color: #c8102e;
+            color: white;
+            padding: 0.5rem;
+            font-size: 0.9rem;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -255,7 +271,7 @@ def create_lessons_learned_doc_fr(content, output_path, image_paths=None):
     doc.save(output_path)
 
 # Streamlit UI
-st.title('🦺 Serious Event Lessons Learned Generator')
+st.title('Serious Event Lessons Learned Generator')
 
 uploaded_file = st.file_uploader("Upload Executive Review PPTX", type=['pptx'])
 language = st.selectbox("Choose report language:", ["English", "French (Canadian)"])
