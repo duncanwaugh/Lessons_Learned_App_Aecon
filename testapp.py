@@ -47,7 +47,7 @@ def extract_text_and_images_from_pptx(path: str):
 
     return text, images
 
-# ─── Call OpenAI to extract sections with detailed summary ─────────────────────
+# ─── OpenAI extraction with detailed summary ──────────────────────────────────
 def summarize_and_extract(text: str) -> str:
     system_msg = "You are a concise safety-report writer for Aecon."
     prompt = f"""
@@ -91,6 +91,7 @@ def translate_to_french_openai(text: str) -> str:
     )
     return r.choices[0].message.content.strip()
 
+
 def translate_to_spanish_openai(text: str) -> str:
     prompt = f"Translate into professional Spanish, keep formatting, section headers and bullets intact:\n\n{text}"
     r = client.chat.completions.create(
@@ -100,6 +101,7 @@ def translate_to_spanish_openai(text: str) -> str:
         max_tokens=1000,
     )
     return r.choices[0].message.content.strip()
+
 
 def translate_to_deepl(text: str, lang: str) -> str:
     if not DEEPL_KEY:
@@ -115,7 +117,7 @@ def translate_to_deepl(text: str, lang: str) -> str:
     )
     return r.json()["translations"][0]["text"]
 
-# ─── Parse GPT output into a dict ─────────────────────────────────────────────
+# ─── Parse GPT output into dict ─────────────────────────────────────────────────
 def parse_sections(out: str) -> dict:
     sections, current = {}, None
     for line in out.splitlines():
@@ -129,7 +131,7 @@ def parse_sections(out: str) -> dict:
             sections[current].append(line)
     return sections
 
-# ─── Render via docxtpl + insert images into template table ───────────────────
+# ─── Render + insert images into template ──────────────────────────────────────
 def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[str]):
     # verify images via PIL
     valid_exts = {'.png','.jpg','.jpeg','.bmp','.gif'}
@@ -146,23 +148,22 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
             continue
     images = verified
 
-    # 1) Fill placeholders
+    # Fill template
     tpl = DocxTemplate(tpl_path)
     context = {
-        "TITLE":      secs.get("Title", [""])[0],
-        "SECTOR":     " ".join(secs.get("Aecon Business Sector", [])),
-        "PROJECT":    " ".join(secs.get("Project/Location", [])),
-        "DATE":       " ".join(secs.get("Date of Event", [])),
-        "EVENT_TYPE": " ".join(secs.get("Event Type", [])),
-        "SUMMARY":    " ".join(secs.get("Event Summary", [])),
-        # Render lists as proper bullets by prefixing
-        "FACTORS":    "\n".join(f"- {item}" for item in secs.get("Contributing Factors", [])),
-        "LESSONS":    "\n".join(f"- {item}" for item in secs.get("Lessons Learned", [])),
+        "TITLE":   secs.get("Title", [""])[0],
+        "SECTOR":  " ".join(secs.get("Aecon Business Sector", [])),
+        "PROJECT":" ".join(secs.get("Project/Location", [])),
+        "DATE":   " ".join(secs.get("Date of Event", [])),
+        "EVENT_TYPE":" ".join(secs.get("Event Type", [])),
+        "SUMMARY":  " \n".join(secs.get("Event Summary", [])),
+        "FACTORS":  "\n".join(f"- {f}" for f in secs.get("Contributing Factors", [])),
+        "LESSONS":  "\n".join(f"- {l}" for l in secs.get("Lessons Learned", [])),
     }
     tpl.render(context)
     tpl.save(out_path)
 
-    # 2) Insert images
+    # Insert images
     doc = Document(out_path)
     img_table = None
     for tbl in doc.tables:
@@ -172,7 +173,6 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
                 break
         if img_table:
             break
-
     if img_table:
         tbl_elm = img_table._tbl
         for row in list(img_table.rows):
@@ -200,9 +200,8 @@ st.markdown("""
 
 st.title("🦺 Serious Event Lessons Learned Generator")
 pptx_file = st.file_uploader("Upload Executive Review PPTX", type="pptx")
-
-lang      = st.selectbox("Language:", ["English","French (Canadian)","Spanish"])
-translator= None
+lang = st.selectbox("Language:", ["English","French (Canadian)","Spanish"])
+translator = None
 if lang in ["French (Canadian)", "Spanish"]:
     translator = st.radio("Translate via:", ["OpenAI","DeepL"])
 
@@ -214,31 +213,27 @@ if pptx_file and st.button("📄 Generate DOCX"):
     raw_text, images = extract_text_and_images_from_pptx(in_fp)
     generated = summarize_and_extract(raw_text)
 
-    if lang == "French (Canadian)":
-        if translator == "OpenAI":
-            generated = translate_to_french_openai(generated)
-        else:
-            generated = translate_to_deepl(generated, "French")
-    elif lang == "Spanish":
-        if translator == "OpenAI":
-            generated = translate_to_spanish_openai(generated)
-        else:
-            generated = translate_to_deepl(generated, "Spanish")
+    # Show raw generated for debugging
+    st.text_area("📝 Raw Generated Content", generated, height=300)
 
-    secs   = parse_sections(generated)
+    if lang == "French (Canadian)":
+        generated = (translate_to_french_openai(generated)
+                     if translator=="OpenAI" else translate_to_deepl(generated, "French"))
+    elif lang == "Spanish":
+        generated = (translate_to_spanish_openai(generated)
+                     if translator=="OpenAI" else translate_to_deepl(generated, "Spanish"))
+
+    # Show post-translation for debugging
+    if lang != "English":
+        st.text_area(f"📝 Translated ({lang})", generated, height=300)
+
+    secs = parse_sections(generated)
     out_fp = f"lessons_learned_{lang[:2].lower()}.docx"
-    render_with_docxtpl(
-        secs,
-        "lessons learned template.docx",
-        out_fp,
-        images
-    )
+    render_with_docxtpl(secs, "lessons learned template.docx", out_fp, images)
 
     with open(out_fp, "rb") as f:
-        st.download_button(
-            "📥 Download DOCX", f, out_fp,
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
+        st.download_button("📥 Download DOCX", f, out_fp,
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
 st.markdown("""
 <hr style="border:none;height:2px;background:#c8102e;"/>
