@@ -52,7 +52,7 @@ def summarize_and_extract(text: str) -> str:
     prompt = f"""
 You are helping prepare a standardized Lessons Learned document from a serious incident.
 
-Please extract and clearly label the following sections. Each section label should appear on its own line and be followed by its content. Separate sections with one blank line. Contributing Factors and Lessons Learned should be in bullet point form.
+Please extract and clearly label the following sections. Each section label should appear on its own line and be followed by its content. Separate sections with one blank line.
 
 Use these exact labels:
 Title:
@@ -71,7 +71,7 @@ Here is the presentation text:
         model="gpt-4",
         messages=[{"role":"user","content":prompt}],
         temperature=0.2,
-        max_tokens=1000,
+        max_tokens=900,
     )
     return r.choices[0].message.content.strip()
 
