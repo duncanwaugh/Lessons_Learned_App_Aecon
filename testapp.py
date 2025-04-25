@@ -136,14 +136,32 @@ def translate_to_deepl(text: str, lang: str) -> str:
 
 # ─── Parse GPT output into dict ─────────────────────────────────────────────────
 def parse_sections(out: str) -> dict:
-    sections, current = {}, None
+    """
+    Split GPT output into labeled sections, handling both:
+      - “Label:” on its own line with subsequent lines
+      - “Label: value” on a single line
+    """
+    import re
+    labels = [
+        "Title", "Aecon Business Sector", "Project/Location",
+        "Date of Event", "Event Type", "Event Summary",
+        "Contributing Factors", "Lessons Learned",
+    ]
+    sections = {}
+    current = None
+    # matches “Label: rest-of-line”
+    pat = re.compile(r'^([^:]+):\s*(.*)$')
     for line in out.splitlines():
         line = line.strip()
         if not line:
             continue
-        if line.endswith(':') and len(line.split()) < 6:
-            current = line[:-1].strip()
-            sections[current] = []
+        m = pat.match(line)
+        if m and m.group(1) in labels:
+            key, rest = m.group(1), m.group(2)
+            sections[key] = []
+            if rest:
+                sections[key].append(rest)
+            current = key
         elif current:
             sections[current].append(line)
     return sections
@@ -174,8 +192,8 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
         "DATE":   " ".join(secs.get("Date of Event", [])),
         "EVENT_TYPE":" ".join(secs.get("Event Type", [])),
         "SUMMARY":  " \n".join(secs.get("Event Summary", [])),
-        "FACTORS":  "\n".join(f"- {f}" for f in secs.get("Contributing Factors", [])),
-        "LESSONS":  "\n".join(f"- {l}" for l in secs.get("Lessons Learned", [])),
+        "FACTORS":  "\n".join(f"{f}" for f in secs.get("Contributing Factors", [])),
+        "LESSONS":  "\n".join(f"{l}" for l in secs.get("Lessons Learned", [])),
     }
     tpl.render(context)
     tpl.save(out_path)
