@@ -242,7 +242,7 @@ st.markdown("""
 
 st.title("Serious Event Lessons Learned Generator")
 pptx_file = st.file_uploader("Upload Executive Review PPTX", type="pptx")
-lang = st.selectbox("Language:", ["English","French (Canadian)","Spanish"])
+lang = st.selectbox("Language:", ["English","French (Canadian) - waiting on template","Spanish - waiting on template"])
 translator = None
 if lang in ["French (Canadian) - waiting on template", "Spanish - waiting on template"]:
     translator = st.radio("Translate via:", ["OpenAI","DeepL"])
