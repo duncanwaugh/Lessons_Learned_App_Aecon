@@ -262,7 +262,7 @@ if uploaded and st.button("📄 Generate Document"):
     out_fp = f"lessons_learned_{'fr' if language.startswith('French') else 'en'}.docx"
 
     if use_tpl:
-        render_with_docxtpl(secs, "lessons learned template.docx", out_fp, images)
+        render_with_docxtpl(secs, "template.docx", out_fp, images)
     else:
         if language.startswith("French"):
             create_lessons_learned_doc_fr(generated, out_fp, images)
