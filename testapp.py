@@ -1,32 +1,24 @@
 import os
-import re
 import streamlit as st
 import requests
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
-from docx import Document
-from html2docx import html2docx
+from docx.shared import Inches
+from docxtpl import DocxTemplate, InlineImage
 from dotenv import load_dotenv
 from openai import OpenAI
 
-# ─── Install html2docx in your env: ──────────────────────────────────────────
-# pip install html2docx
-# And add "html2docx" to your requirements.txt
-
-# ─── Load secrets & clients ─────────────────────────────────────────────────
+# ─── Load environment variables & secrets ──────────────────────────────────────
 load_dotenv()
-OPENAI_KEY = os.getenv("OPENAI_API_KEY")
-DEEPL_KEY  = os.getenv("DEEPL_API_KEY")
-client     = OpenAI(api_key=OPENAI_KEY)
+OPENAI_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+DEEPL_KEY  = st.secrets.get("DEEPL_API_KEY")  or os.getenv("DEEPL_API_KEY")
+if not OPENAI_KEY:
+    st.error("OpenAI API key not found! Please set OPENAI_API_KEY in Streamlit secrets or .env")
+client = OpenAI(api_key=OPENAI_KEY)
 
-# ─── Utility: extract inner <body> HTML ─────────────────────────────────────
-def extract_body(html: str) -> str:
-    """Pull the content between <body> and </body> (inclusive of inner tags)."""
-    m = re.search(r"<body[^>]*>(.*?)</body>", html, flags=re.S | re.I)
-    return m.group(1) if m else html
-
-# ─── Parse the GPT output into sections ─────────────────────────────────────
+# ─── Utility Functions ────────────────────────────────────────────────────────
 def parse_sections(content: str) -> dict:
+    """Split GPT output into labeled sections."""
     sections, current = {}, None
     for line in content.splitlines():
         line = line.strip()
@@ -39,68 +31,9 @@ def parse_sections(content: str) -> dict:
             sections[current].append(line)
     return sections
 
-# ─── Build styled HTML from those sections ──────────────────────────────────
-def build_html(sections: dict, image_paths: list[str]) -> str:
-    css = """
-    <style>
-      body { font-family:'Segoe UI',sans-serif; margin:20px; }
-      h1,h2 { color:#c8102e; }
-      ul { margin:0 0 1em 1.5em; }
-      .img-row { display:flex; flex-wrap:wrap; gap:10px; }
-      .img-row img { width:45%; }
-    </style>
-    """
-    html = ["<html><head><meta charset='utf-8'>", css, "</head><body>"]
-    html.append(f"<h1>{sections.get('Title',[''])[0]}</h1>")
-    html.append(f"<p><strong>Aecon Business Sector:</strong> {' '.join(sections.get('Aecon Business Sector',[]))}</p>")
-    html.append(f"<p><strong>Project/Location:</strong> {' '.join(sections.get('Project/Location',[]))}</p>")
-    html.append(f"<p><strong>Date of Event:</strong> {' '.join(sections.get('Date of Event',[]))}</p>")
-    html.append(f"<p><strong>Event Type:</strong> {' '.join(sections.get('Event Type',[]))}</p>")
-    html.append(f"<h2>Event Summary</h2><p>{' '.join(sections.get('Event Summary',[]))}</p>")
-    html.append("<h2>Contributing Factors</h2><ul>")
-    for f in sections.get("Contributing Factors", []):
-        html.append(f"<li>{f}</li>")
-    html.append("</ul><h2>Lessons Learned</h2><ul>")
-    for l in sections.get("Lessons Learned", []):
-        html.append(f"<li>{l}</li>")
-    html.append("</ul>")
-    if image_paths:
-        html.append("<h2>Supporting Pictures</h2><div class='img-row'>")
-        for img in image_paths:
-            html.append(f"<img src='{img}' />")
-        html.append("</div>")
-    html.append("</body></html>")
-    return "".join(html)
-
-# ─── Convert HTML → DOCX ────────────────────────────────────────────────────
-def html_to_docx(html: str, output_path: str):
-    doc = Document()
-    body_html = extract_body(html)
-    html2docx(body_html, doc)
-    doc.save(output_path)
-
-# ─── Streamlit UI & Glue ────────────────────────────────────────────────────
-st.set_page_config(page_title="Aecon Lessons Learned Generator", page_icon="📘")
-st.image("AECON.png", width=300)
-st.markdown("""
-<style>
-  .stApp { background:#fff; }
-  h1,h2 { color:#c8102e; }
-  .stButton>button,.stDownloadButton>button { background:#c8102e;color:#fff; }
-  body{font-family:'Segoe UI',sans-serif;}
-</style>
-""", unsafe_allow_html=True)
-
-st.title("Serious Event Lessons Learned Generator")
-uploaded = st.file_uploader("Upload Executive Review PPTX", type="pptx")
-language = st.selectbox("Choose report language:", ["English", "French (Canadian)"])
-translator = None
-if language == "French (Canadian)":
-    translator = st.radio("Translate using:", ["OpenAI", "DeepL"])
-
-if uploaded and st.button("📄 Generate Lessons Learned DOCX"):
-    # Extract PPTX text + images
-    prs = Presentation(uploaded)
+def extract_text_and_images_from_pptx(path: str):
+    """Pull all text and picture blobs from a PPTX."""
+    prs = Presentation(path)
     text, images = "", []
     os.makedirs("images", exist_ok=True)
     for idx, slide in enumerate(prs.slides):
@@ -111,12 +44,14 @@ if uploaded and st.button("📄 Generate Lessons Learned DOCX"):
                 blob = shp.image.blob
                 ext  = shp.image.ext
                 fn   = f"images/slide_{idx+1}_{len(images)}.{ext}"
-                with open(fn, "wb") as imgf: imgf.write(blob)
+                with open(fn, "wb") as imgf:
+                    imgf.write(blob)
                 images.append(fn)
+    return text, images
 
-    # Summarize
-    with st.spinner("Summarizing..."):
-        prompt = f"""
+def summarize_and_extract(text: str) -> str:
+    """Call OpenAI to extract labeled sections from raw incident text."""
+    prompt = f"""
 You are helping prepare a standardized Lessons Learned document from a serious incident.
 
 Please extract and clearly label the following sections. Each section label should appear on its own line and be followed by its content. Separate sections with one blank line.
@@ -134,49 +69,218 @@ Lessons Learned:
 Here is the presentation text:
 {text}
 """
-        resp = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role":"user","content":prompt}],
-            temperature=0.2,
-            max_tokens=1000,
-        )
-        generated = resp.choices[0].message.content.strip()
+    resp = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+        max_tokens=1000,
+    )
+    return resp.choices[0].message.content.strip()
 
-    # Translate if required
+def translate_to_french_openai(text: str) -> str:
+    """Translate text to French Canadian via OpenAI."""
+    prompt = f"""
+Translate the following safety incident summary into professional French Canadian. Keep formatting intact.
+
+Text to translate:
+{text}
+"""
+    resp = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+        max_tokens=1000,
+    )
+    return resp.choices[0].message.content.strip()
+
+def translate_to_french_deepl(text: str) -> str:
+    """Translate text to French Canadian via DeepL."""
+    if not DEEPL_KEY:
+        st.error("DeepL API key not found! Please set DEEPL_API_KEY.")
+        return text
+    resp = requests.post(
+        "https://api-free.deepl.com/v2/translate",
+        data={
+            "auth_key": DEEPL_KEY,
+            "text": text,
+            "target_lang": "FR",
+            "formality": "more"
+        }
+    )
+    try:
+        return resp.json()["translations"][0]["text"]
+    except:
+        st.error("DeepL translation failed")
+        return text
+
+def render_with_docxtpl(sections: dict, template_path: str, output_path: str, image_paths: list[str]):
+    """
+    Populate a .docx template with Jinja placeholders using docxtpl.
+    Template placeholders must match these keys:
+      {{ TITLE }}, {{ SECTOR }}, {{ PROJECT }}, {{ DATE }}, {{ EVENT_TYPE }},
+      {{ SUMMARY }}, {% for f in FACTORS %}, {% for l in LESSONS %}, {% for pic in IMAGES %}
+    """
+    tpl = DocxTemplate(template_path)
+    context = {
+        "TITLE":      sections.get("Title", [""])[0],
+        "SECTOR":     " ".join(sections.get("Aecon Business Sector", [])),
+        "PROJECT":    " ".join(sections.get("Project/Location", [])),
+        "DATE":       " ".join(sections.get("Date of Event", [])),
+        "EVENT_TYPE": " ".join(sections.get("Event Type", [])),
+        "SUMMARY":    " ".join(sections.get("Event Summary", [])),
+        "FACTORS":    sections.get("Contributing Factors", []),
+        "LESSONS":    sections.get("Lessons Learned", []),
+        "IMAGES":     [],
+    }
+    # Convert image paths to InlineImage objects
+    for img in image_paths:
+        context["IMAGES"].append(InlineImage(tpl, img, width=Inches(2.5)))
+
+    tpl.render(context)
+    tpl.save(output_path)
+
+def create_lessons_learned_doc(content: str, output_path: str, image_paths=None):
+    """Fallback manual English DOCX generator (python-docx)."""
+    sections = parse_sections(content)
+    doc = Document()
+    doc.add_heading(sections.get("Title", ["Lessons Learned Handout"])[0], level=1)
+    doc.add_heading("Aecon Business Sector", level=2)
+    doc.add_paragraph(" ".join(sections.get("Aecon Business Sector", [])))
+    doc.add_heading("Project/Location", level=2)
+    doc.add_paragraph(" ".join(sections.get("Project/Location", [])))
+    doc.add_heading("Date of Event", level=2)
+    doc.add_paragraph(" ".join(sections.get("Date of Event", [])))
+    doc.add_heading("Event Type", level=2)
+    doc.add_paragraph(" ".join(sections.get("Event Type", [])))
+    doc.add_heading("Event Summary", level=2)
+    doc.add_paragraph(" ".join(sections.get("Event Summary", [])))
+    doc.add_heading("Contributing Factors", level=2)
+    for f in sections.get("Contributing Factors", []):
+        doc.add_paragraph(f, style="List Bullet")
+    doc.add_heading("Lessons Learned", level=2)
+    for l in sections.get("Lessons Learned", []):
+        doc.add_paragraph(l, style="List Bullet")
+    if image_paths:
+        doc.add_page_break()
+        doc.add_heading("Supporting Pictures", level=2)
+        table = doc.add_table(rows=0, cols=2)
+        for i in range(0, len(image_paths), 2):
+            cells = table.add_row().cells
+            for j in (0, 1):
+                if i + j < len(image_paths):
+                    try:
+                        cells[j].paragraphs[0].add_run().add_picture(
+                            image_paths[i+j], width=Inches(2.5)
+                        )
+                    except:
+                        cells[j].text = "⚠️ Error loading image"
+    doc.save(output_path)
+
+def create_lessons_learned_doc_fr(content: str, output_path: str, image_paths=None):
+    """Fallback manual French DOCX generator (python-docx)."""
+    sections = parse_sections(content)
+    doc = Document()
+    def G(k): return sections.get(k, [])
+    doc.add_heading(G("Titre")[0] if G("Titre") else "Document d'apprentissage", level=1)
+    doc.add_heading("Secteur d'activité d'Aecon", level=2)
+    doc.add_paragraph(" ".join(G("Secteur d'activité d'Aecon")))
+    doc.add_heading("Projet/Emplacement", level=2)
+    doc.add_paragraph(" ".join(G("Projet/Emplacement")))
+    doc.add_heading("Date de l'événement", level=2)
+    doc.add_paragraph(" ".join(G("Date de l'événement")))
+    doc.add_heading("Type d'événement", level=2)
+    doc.add_paragraph(" ".join(G("Type d'événement")))
+    doc.add_heading("Résumé de l'événement", level=2)
+    doc.add_paragraph(" ".join(G("Résumé de l'événement")))
+    doc.add_heading("Facteurs contributifs", level=2)
+    for f in G("Facteurs contributifs"):
+        doc.add_paragraph(f, style="List Bullet")
+    doc.add_heading("Leçons apprises", level=2)
+    for l in G("Leçons apprises")+G("Leçons tirées"):
+        doc.add_paragraph(l, style="List Bullet")
+    if image_paths:
+        doc.add_page_break()
+        doc.add_heading("Photos de soutien", level=2)
+        table = doc.add_table(rows=0, cols=2)
+        for i in range(0, len(image_paths), 2):
+            cells = table.add_row().cells
+            for j in (0,1):
+                if i + j < len(image_paths):
+                    try:
+                        cells[j].paragraphs[0].add_run().add_picture(
+                            image_paths[i+j], width=Inches(2.5)
+                        )
+                    except:
+                        cells[j].text = "⚠️ Erreur de chargement de l'image"
+    doc.save(output_path)
+
+
+# ─── Streamlit UI ────────────────────────────────────────────────────────────
+st.set_page_config(page_title="Aecon Lessons Learned Generator", page_icon="📘")
+st.image("AECON.png", width=300)
+st.markdown("""
+<style>
+  .stApp { background:#fff; }
+  h1,h2 { color:#c8102e; }
+  .stButton>button, .stDownloadButton>button { background:#c8102e; color:#fff; }
+  body { font-family:'Segoe UI',sans-serif; }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("🦺 Serious Event Lessons Learned Generator")
+uploaded = st.file_uploader("Upload Executive Review PPTX", type="pptx")
+language = st.selectbox("Choose report language:", ["English", "French (Canadian)"])
+translator = None
+if language == "French (Canadian)":
+    translator = st.radio("Translate via:", ["OpenAI", "DeepL"])
+
+use_template = st.checkbox("📑 Use official Aecon Word template", value=True)
+
+if uploaded and st.button("📄 Generate Lessons Learned Document"):
+    # 1) Save upload
+    in_fp = f"input/{uploaded.name}"
+    os.makedirs("input", exist_ok=True)
+    with open(in_fp, "wb") as f: f.write(uploaded.getbuffer())
+
+    # 2) Extract text/images
+    text, images = extract_text_and_images_from_pptx(in_fp)
+
+    # 3) Summarize
+    with st.spinner("Generating summary..."):
+        generated = summarize_and_extract(text)
+
+    # 4) Translate if needed
     if language == "French (Canadian)":
         with st.spinner("Translating..."):
-            if translator == "OpenAI":
-                t_prompt = f"Translate into professional French Canadian:\n\n{generated}"
-                t_resp   = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[{"role":"user","content":t_prompt}],
-                    temperature=0.2,
-                    max_tokens=1000,
-                )
-                generated = t_resp.choices[0].message.content.strip()
-            else:
-                dl = requests.post(
-                    "https://api-free.deepl.com/v2/translate",
-                    data={"auth_key":DEEPL_KEY,"text":generated,"target_lang":"FR","formality":"more"},
-                )
-                generated = dl.json()["translations"][0]["text"]
+            generated = (translate_to_french_openai(generated)
+                         if translator == "OpenAI"
+                         else translate_to_french_deepl(generated))
 
     st.success("✅ Generation complete!")
-    st.text_area("📝 Generated Content", generated, height=300)
+    st.text_area("📝 Generated Content:", generated, height=300)
 
-    # Build HTML & convert
+    # 5) Produce DOCX
     secs = parse_sections(generated)
-    html = build_html(secs, images)
-    out  = f"lessons_learned_{'fr' if language.startswith('French') else 'en'}.docx"
-    html_to_docx(html, out)
+    lang_code = "fr" if language.startswith("French") else "en"
+    out_fp = f"lessons_learned_{lang_code}.docx"
+    if use_template:
+        render_with_docxtpl(secs, "template.docx", out_fp, images)
+    else:
+        if language.startswith("French"):
+            create_lessons_learned_doc_fr(generated, out_fp, images)
+        else:
+            create_lessons_learned_doc(generated, out_fp, images)
 
-    with open(out, "rb") as f:
+    # 6) Download
+    with open(out_fp, "rb") as f:
         st.download_button(
-            "📥 Download DOCX", f, out,
+            "📥 Download DOCX",
+            f,
+            out_fp,
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
 
-# Footer
+# ─── Footer ──────────────────────────────────────────────────────────────────
 st.markdown("""
 <hr style="border:none;height:2px;background:#c8102e;"/>
 <div style="text-align:center;padding:10px;background:#c8102e;color:#fff;">

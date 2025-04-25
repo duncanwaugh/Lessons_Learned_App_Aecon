@@ -5,3 +5,4 @@ streamlit
 python-dotenv
 html2docx
 requests
+docxtpl
