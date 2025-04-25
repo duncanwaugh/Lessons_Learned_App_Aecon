@@ -248,35 +248,62 @@ if lang in ["French (Canadian) - waiting on template", "Spanish - waiting on tem
     translator = st.radio("Translate via:", ["OpenAI","DeepL"])
 
 if pptx_file and st.button("📄 Generate DOCX"):
+    # 0) prepare
     os.makedirs("input", exist_ok=True)
     in_fp = f"input/{pptx_file.name}"
-    with open(in_fp, "wb") as f: f.write(pptx_file.getbuffer())
+    with open(in_fp, "wb") as f:
+        f.write(pptx_file.getbuffer())
 
+    # initialize progress
+    progress = st.progress(0)
+
+    # 1) extract text & images
+    progress.progress(10)
     raw_text, images = extract_text_and_images_from_pptx(in_fp)
+
+    # 2) summarize
+    progress.progress(30)
     generated = summarize_and_extract(raw_text)
 
-    # Show raw generated for debugging
+    # show raw for debug
     st.text_area("📝 Raw Generated Content", generated, height=300)
 
+    # 3) translate if needed
+    progress.progress(50)
     if lang == "French (Canadian)":
-        generated = (translate_to_french_openai(generated)
-                     if translator=="OpenAI" else translate_to_deepl(generated, "French"))
+        generated = (
+            translate_to_french_openai(generated)
+            if translator == "OpenAI"
+            else translate_to_deepl(generated, "French")
+        )
     elif lang == "Spanish":
-        generated = (translate_to_spanish_openai(generated)
-                     if translator=="OpenAI" else translate_to_deepl(generated, "Spanish"))
+        generated = (
+            translate_to_spanish_openai(generated)
+            if translator == "OpenAI"
+            else translate_to_deepl(generated, "Spanish")
+        )
 
-    # Show post-translation for debugging
+    # show translated
     if lang != "English":
         st.text_area(f"📝 Translated ({lang})", generated, height=300)
 
+    # 4) parse & render
+    progress.progress(75)
     secs = parse_sections(generated)
     out_fp = f"lessons_learned_{lang[:2].lower()}.docx"
     render_with_docxtpl(secs, "lessons learned template.docx", out_fp, images)
 
-    with open(out_fp, "rb") as f:
-        st.download_button("📥 Download DOCX", f, out_fp,
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    # 5) done
+    progress.progress(100)
+    st.success("✅ Done generating!")
 
+    with open(out_fp, "rb") as f:
+        st.download_button(
+            "📥 Download DOCX",
+            f,
+            out_fp,
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
 st.markdown("""
 <hr style="border:none;height:2px;background:#c8102e;"/>
 <div style="text-align:center;padding:10px;background:#c8102e;color:#fff;">
