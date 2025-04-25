@@ -1,314 +1,285 @@
 import os
+import hashlib
 import streamlit as st
 import requests
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
-from docx import Document
-from docx.shared import Pt, Inches
-from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from dotenv import load_dotenv
 from openai import OpenAI
+from docxtpl import DocxTemplate, InlineImage
+from docx import Document
+from docx.shared import Inches
+from PIL import Image as PILImage
 
-# Load environment variables
+# ─── Load API keys ────────────────────────────────────────────────────────────
 load_dotenv()
+OPENAI_KEY = os.getenv("OPENAI_API_KEY")
+DEEPL_KEY  = os.getenv("DEEPL_API_KEY")
+if not OPENAI_KEY:
+    st.error("Missing OPENAI_API_KEY in .env or Streamlit secrets")
+client = OpenAI(api_key=OPENAI_KEY)
 
-# Set page config and style
-st.set_page_config(page_title="Aecon Lessons Learned Generator", page_icon="📘", layout="centered")
-
-# Display Aecon logo and style the title
-st.image("AECON.png", width=300)
-st.markdown("""
-    <style>
-        .main {
-            background-color: #ffffff;
-        }
-        .stApp {
-            background-color: #ffffff;
-        }
-        h1, h2, h3, h4, h5 {
-            color: #c8102e;
-        }
-        .stButton>button {
-            background-color: #c8102e;
-            color: white;
-            border: None;
-        }
-        .stDownloadButton>button {
-            background-color: #c8102e;
-            color: white;
-        }
-            body {
-            font-family: 'Segoe UI', sans-serif;
-        }
-        
-        
-    </style>
-""", unsafe_allow_html=True)
-
-
-
-# Set up OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-# Extract text and images from PPTX
-def extract_text_and_images_from_pptx(file_path):
-    prs = Presentation(file_path)
-    text = ''
-    image_paths = []
+# ─── Extract + dedupe text & images from PPTX ─────────────────────────────────
+def extract_text_and_images_from_pptx(path: str):
+    prs = Presentation(path)
+    text, images, seen_hashes = "", [], set()
     os.makedirs("images", exist_ok=True)
 
-    for i, slide in enumerate(prs.slides):
-        for shape in slide.shapes:
-            if shape.has_text_frame:
-                text += shape.text_frame.text + "\n"
-            elif shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
-                image = shape.image
-                ext = image.ext
-                image_bytes = image.blob
-                image_path = f"images/slide_{i+1}_{len(image_paths)}.{ext}"
-                with open(image_path, 'wb') as img_file:
-                    img_file.write(image_bytes)
-                image_paths.append(image_path)
+    for idx, slide in enumerate(prs.slides):
+        for shp in slide.shapes:
+            if shp.has_text_frame:
+                text += shp.text_frame.text + "\n"
+            elif shp.has_table:
+                for row in shp.table.rows:
+                    for cell in row.cells:
+                        text += cell.text + "\n"
+            elif shp.shape_type == MSO_SHAPE_TYPE.PICTURE:
+                blob = shp.image.blob
+                h = hashlib.sha256(blob).hexdigest()
+                if h in seen_hashes:
+                    continue
+                seen_hashes.add(h)
+                ext = shp.image.ext
+                fn  = f"images/slide{idx+1}_{len(images)}.{ext}"
+                with open(fn, "wb") as imgf:
+                    imgf.write(blob)
+                images.append(fn)
 
-    return text, image_paths
+    return text, images
 
-# Generate summary and extracted sections using OpenAI GPT
-def summarize_and_extract(text):
+# ─── OpenAI extraction with detailed summary ──────────────────────────────────
+def summarize_and_extract(text: str) -> str:
+    system_msg = "You are a concise safety-report writer for Aecon."
     prompt = f"""
-    You are helping prepare a standardized Lessons Learned document from a serious incident.
+You are preparing a formal Lessons Learned report from a serious incident.
 
-    Please extract and clearly label the following sections. Each section label should appear on its own line and be followed by its content. Separate sections with one blank line.
+**Produce each section clearly labeled.**  
+For the **Event Summary**, write a detailed multi-paragraph narrative covering:
+  1. Background/context  
+  2. Step-by-step sequence of events  
+  3. Immediate outcome and injuries/damages  
+  4. Broader impacts (delays, reputation, etc.)
 
-    Use these exact labels:
-    Title:
-    Aecon Business Sector:
-    Project/Location:
-    Date of Event:
-    Event Type:
-    Event Summary:
-    Contributing Factors:
-    Lessons Learned:
+For **Contributing Factors** and **Lessons Learned**, use a true bullet list:  
+- One factor per line prefixed with a hyphen and a space  
+- E.g.:
 
-    Here is the presentation text:
-    {text}
-    """
+Contributing Factors:
+- Factor one
+- Factor two
+- Factor three
 
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
-        max_tokens=1000,
-    )
+Lessons Learned:
+- Lesson one
+- Lesson two
 
-    return response.choices[0].message.content.strip()
+Use these exact labels (and nothing else) so your parser can pick them up:
+Title:
+Aecon Business Sector:
+Project/Location:
+Date of Event:
+Event Type:
+Event Summary:
+Contributing Factors:
+Lessons Learned:
 
-# Translate generated content to French (Canadian) using OpenAI
-def translate_to_french_openai(text):
-    prompt = f"""
-    Translate the following safety incident summary into professional French Canadian. Keep the formatting, section headers, and bullet points intact.
-
-    Text to translate:
-    {text}
-    """
-
-    response = client.chat.completions.create(
+Here is the presentation text:
+{text}
+"""
+    r = client.chat.completions.create(
         model="gpt-4",
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role":"system","content":system_msg},
+            {"role":"user","content":prompt}
+        ],
+        temperature=0.2,
+        max_tokens=1500,
+    )
+    return r.choices[0].message.content.strip()
+
+# ─── Translation helpers ──────────────────────────────────────────────────────
+def translate_to_french_openai(text: str) -> str:
+    prompt = f"Translate into professional French Canadian, keep formatting:\n\n{text}"
+    r = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role":"user","content":prompt}],
         temperature=0.2,
         max_tokens=1000,
     )
+    return r.choices[0].message.content.strip()
 
-    return response.choices[0].message.content.strip()
 
-# Translate using DeepL API
-def translate_to_french_deepl(text):
-    api_key = os.getenv("DEEPL_API_KEY")
-    if not api_key:
-        st.error("DeepL API key not found. Please add it to your .env file.")
-        return text
-
-    response = requests.post(
-        "https://api-free.deepl.com/v2/translate",
-        data={
-            "auth_key": api_key,
-            "text": text,
-            "target_lang": "FR",
-            "formality": "more"
-        }
+def translate_to_spanish_openai(text: str) -> str:
+    prompt = f"Translate into professional Spanish, keep formatting, section headers and bullets intact:\n\n{text}"
+    r = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role":"user","content":prompt}],
+        temperature=0.2,
+        max_tokens=1000,
     )
+    return r.choices[0].message.content.strip()
 
-    try:
-        return response.json()["translations"][0]["text"]
-    except Exception as e:
-        st.error(f"DeepL translation failed: {e}")
+
+def translate_to_deepl(text: str, lang: str) -> str:
+    if not DEEPL_KEY:
+        st.error("Missing DEEPL_API_KEY in .env or Streamlit secrets")
         return text
+    target = "FR" if lang == "French" else "ES"
+    r = requests.post(
+        "https://api-free.deepl.com/v2/translate",
+        data={"auth_key":DEEPL_KEY,
+              "text": text,
+              "target_lang": target,
+              "formality": "more"}
+    )
+    return r.json()["translations"][0]["text"]
 
-# Parse structured content into sections
-def parse_sections(content):
+# ─── Parse GPT output into dict ─────────────────────────────────────────────────
+def parse_sections(out: str) -> dict:
+    """
+    Split GPT output into labeled sections, handling both:
+      - “Label:” on its own line with subsequent lines
+      - “Label: value” on a single line
+    """
     import re
+    labels = [
+        "Title", "Aecon Business Sector", "Project/Location",
+        "Date of Event", "Event Type", "Event Summary",
+        "Contributing Factors", "Lessons Learned",
+    ]
     sections = {}
-    current_section = None
-    for line in content.splitlines():
+    current = None
+    # matches “Label: rest-of-line”
+    pat = re.compile(r'^([^:]+):\s*(.*)$')
+    for line in out.splitlines():
         line = line.strip()
         if not line:
             continue
-        if line.endswith(':') and len(line.split()) < 6:
-            current_section = line[:-1].strip()
-            sections[current_section] = []
-        elif current_section:
-            sections[current_section].append(line)
+        m = pat.match(line)
+        if m and m.group(1) in labels:
+            key, rest = m.group(1), m.group(2)
+            sections[key] = []
+            if rest:
+                sections[key].append(rest)
+            current = key
+        elif current:
+            sections[current].append(line)
     return sections
 
-# Generate English Word Document
-def create_lessons_learned_doc(content, output_path, image_paths=None):
-    doc = Document()
-    sections = parse_sections(content)
+# ─── Render + insert images into template ──────────────────────────────────────
+def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[str]):
+    # verify images via PIL
+    valid_exts = {'.png','.jpg','.jpeg','.bmp','.gif'}
+    verified = []
+    for img in images:
+        ext = os.path.splitext(img)[1].lower()
+        if ext not in valid_exts:
+            continue
+        try:
+            with PILImage.open(img) as im:
+                im.verify()
+            verified.append(img)
+        except:
+            continue
+    images = verified
 
-    doc.add_heading(sections.get("Title", ["Lessons Learned Handout"])[0], level=1)
+        # filter out banner-like headers (very wide & short)
+    filtered = []
+    for img in images:
+        try:
+            with PILImage.open(img) as im:
+                w, h = im.size
+            # skip if width is more than 3x height (likely slide banner)
+            if h == 0 or w / h > 3:
+                continue
+            filtered.append(img)
+        except:
+            continue
+    images = filtered
 
-    doc.add_heading("Aecon Business Sector", level=2)
-    doc.add_paragraph(' '.join(sections.get("Aecon Business Sector", [])))
+    # Fill template
+    tpl = DocxTemplate(tpl_path)
+    context = {
+        "TITLE":   secs.get("Title", [""])[0],
+        "SECTOR":  " ".join(secs.get("Aecon Business Sector", [])),
+        "PROJECT":" ".join(secs.get("Project/Location", [])),
+        "DATE":   " ".join(secs.get("Date of Event", [])),
+        "EVENT_TYPE":" ".join(secs.get("Event Type", [])),
+        "SUMMARY":  " \n".join(secs.get("Event Summary", [])),
+        "FACTORS":  "\n".join(f"{f}" for f in secs.get("Contributing Factors", [])),
+        "LESSONS":  "\n".join(f"{l}" for l in secs.get("Lessons Learned", [])),
+    }
 
-    doc.add_heading("Project/Location", level=2)
-    doc.add_paragraph(' '.join(sections.get("Project/Location", [])))
 
-    doc.add_heading("Date of Event", level=2)
-    doc.add_paragraph(' '.join(sections.get("Date of Event", [])))
-
-    doc.add_heading("Event Type", level=2)
-    doc.add_paragraph(' '.join(sections.get("Event Type", [])))
-
-    doc.add_heading("Event Summary", level=2)
-    doc.add_paragraph(' '.join(sections.get("Event Summary", [])))
-
-    doc.add_heading("Contributing Factors", level=2)
-    for item in sections.get("Contributing Factors", []):
-        doc.add_paragraph(item, style='List Bullet')
-
-    doc.add_heading("Lessons Learned", level=2)
-    for item in sections.get("Lessons Learned", []):
-        doc.add_paragraph(item, style='List Bullet')
-
-    if image_paths:
-        doc.add_page_break()
-        doc.add_heading("Supporting Pictures", level=2)
-        table = doc.add_table(rows=0, cols=2)
-        table.autofit = True
-        for i in range(0, len(image_paths), 2):
-            row_cells = table.add_row().cells
-            for j in range(2):
-                if i + j < len(image_paths):
-                    try:
-                        paragraph = row_cells[j].paragraphs[0]
-                        run = paragraph.add_run()
-                        run.add_picture(image_paths[i + j], width=Inches(2.5))
-                    except Exception:
-                        row_cells[j].text = "⚠️ Error loading image"
-
-    doc.save(output_path)
-
-# Generate French-specific Word Document
-def create_lessons_learned_doc_fr(content, output_path, image_paths=None):
-    doc = Document()
-    sections = parse_sections(content)
-
-    def get_section(possible_names):
-        for name in possible_names:
-            if name in sections:
-                return sections[name]
-        return []
-
-    doc.add_heading(get_section(["Titre", "Title", "EXAMEN D'UN EVENEMENT GRAVE"])[0], level=1)
-
-    doc.add_heading("Secteur d'activité d'Aecon", level=2)
-    doc.add_paragraph(' '.join(get_section(["Secteur d'activité d'Aecon", "Secteur d’activité d’Aecon"])))
-
-    doc.add_heading("Projet/Emplacement", level=2)
-    doc.add_paragraph(' '.join(get_section(["Projet/Emplacement", "Projet/Lieu"])))
-
-    doc.add_heading("Date de l'événement", level=2)
-    doc.add_paragraph(' '.join(get_section(["Date de l'événement"])))
-
-    doc.add_heading("Type d'événement", level=2)
-    doc.add_paragraph(' '.join(get_section(["Type d'événement"])))
-
-    doc.add_heading("Résumé de l'événement", level=2)
-    doc.add_paragraph(' '.join(get_section(["Résumé de l'événement"])))
-
-    doc.add_heading("Facteurs contributifs", level=2)
-    for item in get_section(["Facteurs contributifs"]):
-        doc.add_paragraph(item, style='List Bullet')
-
-    doc.add_heading("Leçons apprises", level=2)
-    for item in get_section(["Leçons apprises", "Leçons tirées"]):
-        doc.add_paragraph(item, style='List Bullet')
-
-    if image_paths:
-        doc.add_page_break()
-        doc.add_heading("Photos de soutien", level=2)
-        table = doc.add_table(rows=0, cols=2)
-        table.autofit = True
-        for i in range(0, len(image_paths), 2):
-            row_cells = table.add_row().cells
-            for j in range(2):
-                if i + j < len(image_paths):
-                    try:
-                        paragraph = row_cells[j].paragraphs[0]
-                        run = paragraph.add_run()
-                        run.add_picture(image_paths[i + j], width=Inches(2.5))
-                    except Exception:
-                        row_cells[j].text = "⚠️ Erreur de chargement de l'image"
-
-    doc.save(output_path)
-
-# Streamlit UI
-st.title('Serious Event Lessons Learned Generator')
-
-uploaded_file = st.file_uploader("Upload Executive Review PPTX", type=['pptx'])
-language = st.selectbox("Choose report language:", ["English", "French (Canadian)"])
-translator = None
-if language == "French (Canadian)":
-    translator = st.radio("Choose translation method:", ["OpenAI (using my account, cost me 50 cents so far and I've probably ran it 200ish times)", "DeepL (using free version, 500 000 characters/month)"])
-
-if uploaded_file:
-    if st.button("📄 Generate Lessons Learned Document"):
-        input_filepath = f'input/{uploaded_file.name}'
-        os.makedirs("input", exist_ok=True)
-        with open(input_filepath, 'wb') as f:
-            f.write(uploaded_file.getbuffer())
-
-        with st.spinner("Extracting content from presentation..."):
-            pptx_text, extracted_images = extract_text_and_images_from_pptx(input_filepath)
-
-        with st.spinner("Generating Lessons Learned summary..."):
-            generated_content = summarize_and_extract(pptx_text)
-
-        if language == "French (Canadian)":
-            with st.spinner("Translating to French (Canadian)..."):
-                if translator == "OpenAI":
-                    generated_content = translate_to_french_openai(generated_content)
-                else:
-                    generated_content = translate_to_french_deepl(generated_content)
-
-        st.success("✅ Generation Complete!")
-        st.text_area("📝 Generated Content:", generated_content, height=300)
-
-        output_path = f'generated_lessons_learned_{"fr" if language.startswith("French") else "en"}.docx'
-        if language == "French (Canadian)":
-            create_lessons_learned_doc_fr(generated_content, output_path, extracted_images)
+    # Insert images
+    MAX_IMG = 10
+    for i in range(1, MAX_IMG+1):
+        key = f"IMAGE{i}"
+        if i <= len(images):
+            try:
+                with PILImage.open(images[i-1]) as im:
+                    im.verify()
+                context[key] = InlineImage(tpl, images[i-1], width=Inches(2.5))
+            except:
+                context[key] = ""
         else:
-            create_lessons_learned_doc(generated_content, output_path, extracted_images)
+            context[key] = ""
 
-        with open(output_path, "rb") as file:
-            st.download_button(
-                label="📥 Download Lessons Learned DOCX",
-                data=file,
-                file_name=os.path.basename(output_path),
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            )
+    tpl.render(context)
+    tpl.save(out_path)
+
+# ─── Streamlit UI ────────────────────────────────────────────────────────────
+st.set_page_config(page_title="Aecon Lessons Learned Generator", page_icon="📘")
+st.image("AECON.png", width=300)
 st.markdown("""
-    <hr style="border: none; height: 2px; background-color: #c8102e;" />
-    <div style='text-align: center; padding: 10px; background-color: #c8102e; color: white; font-size: 0.9rem;'>
-        Built by Aecon | For internal use only
-    </div>
+<style>
+  .stApp { background:#fff; }
+  h1,h2 { color:#c8102e; }
+  .stButton>button,.stDownloadButton>button { background:#c8102e;color:#fff; }
+  body { font-family:'Segoe UI',sans-serif; }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("Serious Event Lessons Learned Generator")
+pptx_file = st.file_uploader("Upload Executive Review PPTX", type="pptx")
+lang = st.selectbox("Language:", ["English","French (Canadian)","Spanish"])
+translator = None
+if lang in ["French (Canadian) - waiting on template", "Spanish - waiting on template"]:
+    translator = st.radio("Translate via:", ["OpenAI","DeepL"])
+
+if pptx_file and st.button("📄 Generate DOCX"):
+    os.makedirs("input", exist_ok=True)
+    in_fp = f"input/{pptx_file.name}"
+    with open(in_fp, "wb") as f: f.write(pptx_file.getbuffer())
+
+    raw_text, images = extract_text_and_images_from_pptx(in_fp)
+    generated = summarize_and_extract(raw_text)
+
+    # Show raw generated for debugging
+    st.text_area("📝 Raw Generated Content", generated, height=300)
+
+    if lang == "French (Canadian)":
+        generated = (translate_to_french_openai(generated)
+                     if translator=="OpenAI" else translate_to_deepl(generated, "French"))
+    elif lang == "Spanish":
+        generated = (translate_to_spanish_openai(generated)
+                     if translator=="OpenAI" else translate_to_deepl(generated, "Spanish"))
+
+    # Show post-translation for debugging
+    if lang != "English":
+        st.text_area(f"📝 Translated ({lang})", generated, height=300)
+
+    secs = parse_sections(generated)
+    out_fp = f"lessons_learned_{lang[:2].lower()}.docx"
+    render_with_docxtpl(secs, "lessons learned template.docx", out_fp, images)
+
+    with open(out_fp, "rb") as f:
+        st.download_button("📥 Download DOCX", f, out_fp,
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+st.markdown("""
+<hr style="border:none;height:2px;background:#c8102e;"/>
+<div style="text-align:center;padding:10px;background:#c8102e;color:#fff;">
+  Built by Aecon | For internal use only
+</div>
 """, unsafe_allow_html=True)
