@@ -150,12 +150,7 @@ def render_with_docxtpl(sections, template_path, output_path, image_paths):
                     except Exception:
                         row[j].text = "[Image failed to load]"
     doc.save(output_path)
-    # Convert image paths to InlineImage objects
-    for img in image_paths:
-        context["IMAGES"].append(InlineImage(tpl, img, width=Inches(2.5)))
 
-    tpl.render(context)
-    tpl.save(output_path)
 
 def create_lessons_learned_doc(content: str, output_path: str, image_paths=None):
     """Fallback manual English DOCX generator (python-docx)."""
