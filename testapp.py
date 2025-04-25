@@ -76,7 +76,7 @@ Here is the presentation text:
         messages=[{"role":"system","content":system_msg},
                   {"role":"user","content":prompt}],
         temperature=0.2,
-        max_tokens=1000,
+        max_tokens=1500,
     )
     return r.choices[0].message.content.strip()
 
@@ -91,7 +91,6 @@ def translate_to_french_openai(text: str) -> str:
     )
     return r.choices[0].message.content.strip()
 
-
 def translate_to_spanish_openai(text: str) -> str:
     prompt = f"Translate into professional Spanish, keep formatting, section headers and bullets intact:\n\n{text}"
     r = client.chat.completions.create(
@@ -101,7 +100,6 @@ def translate_to_spanish_openai(text: str) -> str:
         max_tokens=1000,
     )
     return r.choices[0].message.content.strip()
-
 
 def translate_to_deepl(text: str, lang: str) -> str:
     if not DEEPL_KEY:
@@ -157,21 +155,15 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
         "DATE":       " ".join(secs.get("Date of Event", [])),
         "EVENT_TYPE": " ".join(secs.get("Event Type", [])),
         "SUMMARY":    " ".join(secs.get("Event Summary", [])),
-        "FACTORS":    secs.get("Contributing Factors", []),
-        "LESSONS":    secs.get("Lessons Learned", []),
+        # Render lists as proper bullets by prefixing
+        "FACTORS":    "\n".join(f"- {item}" for item in secs.get("Contributing Factors", [])),
+        "LESSONS":    "\n".join(f"- {item}" for item in secs.get("Lessons Learned", [])),
     }
     tpl.render(context)
     tpl.save(out_path)
 
-    # 2) Post-process bullets
+    # 2) Insert images
     doc = Document(out_path)
-    for p in doc.paragraphs:
-        if p.text in secs.get("Contributing Factors", []):
-            p.style = 'List Bullet'
-        if p.text in secs.get("Lessons Learned", []):
-            p.style = 'List Bullet'
-
-    # 3) Insert images
     img_table = None
     for tbl in doc.tables:
         for cell in tbl._cells:
@@ -206,7 +198,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("Serious Event Lessons Learned Generator")
+st.title("🦺 Serious Event Lessons Learned Generator")
 pptx_file = st.file_uploader("Upload Executive Review PPTX", type="pptx")
 
 lang      = st.selectbox("Language:", ["English","French (Canadian)","Spanish"])
