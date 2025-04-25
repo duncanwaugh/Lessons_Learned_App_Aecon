@@ -71,7 +71,7 @@ Here is the presentation text:
         model="gpt-4",
         messages=[{"role":"user","content":prompt}],
         temperature=0.2,
-        max_tokens=1500,
+        max_tokens=1200,
     )
     return r.choices[0].message.content.strip()
 
