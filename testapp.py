@@ -161,8 +161,8 @@ def create_lessons_learned_doc_fr(content, output_path, image_paths=None):
     doc.save(output_path)
 
 # ————— OpenAI + DeepL clients —————
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 def summarize_and_extract(text):
     prompt = f"""
