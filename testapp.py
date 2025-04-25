@@ -244,7 +244,7 @@ st.title("Serious Event Lessons Learned Generator")
 pptx_file = st.file_uploader("Upload Executive Review PPTX", type="pptx")
 lang = st.selectbox("Language:", ["English","French (Canadian)","Spanish"])
 translator = None
-if lang in ["French (Canadian)", "Spanish"]:
+if lang in ["French (Canadian) - waiting on template", "Spanish - waiting on template"]:
     translator = st.radio("Translate via:", ["OpenAI","DeepL"])
 
 if pptx_file and st.button("📄 Generate DOCX"):
