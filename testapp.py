@@ -52,13 +52,28 @@ def summarize_and_extract(text: str) -> str:
     system_msg = "You are a concise safety-report writer for Aecon."
     prompt = f"""
 You are preparing a formal Lessons Learned report from a serious incident.
-Produce each section clearly labeled. For the Event Summary, write a detailed multi-paragraph narrative covering:
-  1. Background/context
-  2. Step-by-step sequence of events
-  3. Immediate outcome and injuries/damages
+
+**Produce each section clearly labeled.**  
+For the **Event Summary**, write a detailed multi-paragraph narrative covering:
+  1. Background/context  
+  2. Step-by-step sequence of events  
+  3. Immediate outcome and injuries/damages  
   4. Broader impacts (delays, reputation, etc.)
 
-Use these exact labels:
+For **Contributing Factors** and **Lessons Learned**, use a true bullet list:  
+- One factor per line prefixed with a hyphen and a space  
+- E.g.:
+
+Contributing Factors:
+- Factor one
+- Factor two
+- Factor three
+
+Lessons Learned:
+- Lesson one
+- Lesson two
+
+Use these exact labels (and nothing else) so your parser can pick them up:
 Title:
 Aecon Business Sector:
 Project/Location:
@@ -73,8 +88,10 @@ Here is the presentation text:
 """
     r = client.chat.completions.create(
         model="gpt-4",
-        messages=[{"role":"system","content":system_msg},
-                  {"role":"user","content":prompt}],
+        messages=[
+            {"role":"system","content":system_msg},
+            {"role":"user","content":prompt}
+        ],
         temperature=0.2,
         max_tokens=1500,
     )
