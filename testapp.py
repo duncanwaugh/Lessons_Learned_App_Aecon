@@ -47,12 +47,16 @@ def extract_text_and_images_from_pptx(path: str):
 
     return text, images
 
-# ─── Call OpenAI to extract sections ──────────────────────────────────────────
+# ─── Call OpenAI to extract sections with detailed summary ─────────────────────
 def summarize_and_extract(text: str) -> str:
+    system_msg = "You are a concise safety-report writer for Aecon."
     prompt = f"""
-You are helping prepare a standardized Lessons Learned document from a serious incident.
-
-Please extract and clearly label the following sections. Each section label should appear on its own line and be followed by its content. Separate sections with one blank line.
+You are preparing a formal Lessons Learned report from a serious incident.
+Produce each section clearly labeled. For the Event Summary, write a detailed multi-paragraph narrative covering:
+  1. Background/context
+  2. Step-by-step sequence of events
+  3. Immediate outcome and injuries/damages
+  4. Broader impacts (delays, reputation, etc.)
 
 Use these exact labels:
 Title:
@@ -69,13 +73,14 @@ Here is the presentation text:
 """
     r = client.chat.completions.create(
         model="gpt-4",
-        messages=[{"role":"user","content":prompt}],
+        messages=[{"role":"system","content":system_msg},
+                  {"role":"user","content":prompt}],
         temperature=0.2,
-        max_tokens=900,
+        max_tokens=1000,
     )
     return r.choices[0].message.content.strip()
 
-# ─── Optional translations ────────────────────────────────────────────────────
+# ─── Translation helpers ──────────────────────────────────────────────────────
 def translate_to_french_openai(text: str) -> str:
     prompt = f"Translate into professional French Canadian, keep formatting:\n\n{text}"
     r = client.chat.completions.create(
@@ -86,13 +91,29 @@ def translate_to_french_openai(text: str) -> str:
     )
     return r.choices[0].message.content.strip()
 
-def translate_to_french_deepl(text: str) -> str:
+
+def translate_to_spanish_openai(text: str) -> str:
+    prompt = f"Translate into professional Spanish, keep formatting, section headers and bullets intact:\n\n{text}"
+    r = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role":"user","content":prompt}],
+        temperature=0.2,
+        max_tokens=1000,
+    )
+    return r.choices[0].message.content.strip()
+
+
+def translate_to_deepl(text: str, lang: str) -> str:
     if not DEEPL_KEY:
         st.error("Missing DEEPL_API_KEY in .env or Streamlit secrets")
         return text
+    target = "FR" if lang == "French" else "ES"
     r = requests.post(
         "https://api-free.deepl.com/v2/translate",
-        data={"auth_key":DEEPL_KEY,"text":text,"target_lang":"FR","formality":"more"}
+        data={"auth_key":DEEPL_KEY,
+              "text": text,
+              "target_lang": target,
+              "formality": "more"}
     )
     return r.json()["translations"][0]["text"]
 
@@ -112,7 +133,7 @@ def parse_sections(out: str) -> dict:
 
 # ─── Render via docxtpl + insert images into template table ───────────────────
 def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[str]):
-    # Filter and verify common image types
+    # verify images via PIL
     valid_exts = {'.png','.jpg','.jpeg','.bmp','.gif'}
     verified = []
     for img in images:
@@ -127,7 +148,7 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
             continue
     images = verified
 
-    # Fill placeholders
+    # 1) Fill placeholders
     tpl = DocxTemplate(tpl_path)
     context = {
         "TITLE":      secs.get("Title", [""])[0],
@@ -136,14 +157,21 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
         "DATE":       " ".join(secs.get("Date of Event", [])),
         "EVENT_TYPE": " ".join(secs.get("Event Type", [])),
         "SUMMARY":    " ".join(secs.get("Event Summary", [])),
-        "FACTORS":    "\n".join(secs.get("Contributing Factors", [])),
-        "LESSONS":    "\n".join(secs.get("Lessons Learned", [])),
+        "FACTORS":    secs.get("Contributing Factors", []),
+        "LESSONS":    secs.get("Lessons Learned", []),
     }
     tpl.render(context)
     tpl.save(out_path)
 
-    # Insert images into the row marked IMAGE_PLACEHOLDER
+    # 2) Post-process bullets
     doc = Document(out_path)
+    for p in doc.paragraphs:
+        if p.text in secs.get("Contributing Factors", []):
+            p.style = 'List Bullet'
+        if p.text in secs.get("Lessons Learned", []):
+            p.style = 'List Bullet'
+
+    # 3) Insert images
     img_table = None
     for tbl in doc.tables:
         for cell in tbl._cells:
@@ -161,12 +189,9 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
             row = img_table.add_row().cells
             for j in (0,1):
                 if i+j < len(images):
-                    try:
-                        row[j].paragraphs[0].add_run().add_picture(
-                            images[i+j], width=Inches(2.5)
-                        )
-                    except:
-                        row[j].text = "[Image not supported]"
+                    row[j].paragraphs[0].add_run().add_picture(
+                        images[i+j], width=Inches(2.5)
+                    )
     doc.save(out_path)
 
 # ─── Streamlit UI ────────────────────────────────────────────────────────────
@@ -181,12 +206,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🦺 Serious Event Lessons Learned Generator")
+st.title("Serious Event Lessons Learned Generator")
 pptx_file = st.file_uploader("Upload Executive Review PPTX", type="pptx")
-lang      = st.selectbox("Language:", ["English","French (Canadian)"])
+
+lang      = st.selectbox("Language:", ["English","French (Canadian)","Spanish"])
 translator= None
-if lang.startswith("French"):
-    translator = st.radio("Translate via:", ["OpenAI","DeepL"])  
+if lang in ["French (Canadian)", "Spanish"]:
+    translator = st.radio("Translate via:", ["OpenAI","DeepL"])
 
 if pptx_file and st.button("📄 Generate DOCX"):
     os.makedirs("input", exist_ok=True)
@@ -196,10 +222,16 @@ if pptx_file and st.button("📄 Generate DOCX"):
     raw_text, images = extract_text_and_images_from_pptx(in_fp)
     generated = summarize_and_extract(raw_text)
 
-    if lang.startswith("French"):
-        generated = (translate_to_french_openai(generated)
-                     if translator=="OpenAI"
-                     else translate_to_french_deepl(generated))
+    if lang == "French (Canadian)":
+        if translator == "OpenAI":
+            generated = translate_to_french_openai(generated)
+        else:
+            generated = translate_to_deepl(generated, "French")
+    elif lang == "Spanish":
+        if translator == "OpenAI":
+            generated = translate_to_spanish_openai(generated)
+        else:
+            generated = translate_to_deepl(generated, "Spanish")
 
     secs   = parse_sections(generated)
     out_fp = f"lessons_learned_{lang[:2].lower()}.docx"
