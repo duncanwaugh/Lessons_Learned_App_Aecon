@@ -3,3 +3,5 @@ python-pptx
 python-docx
 streamlit
 python-dotenv
+html2docx
+requests
