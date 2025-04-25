@@ -11,8 +11,7 @@ from openai import OpenAI
 # ————— Load ENV / Secrets —————
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-DEEPL_KEY  = st.secrets.get("DEEPL_API_KEY")  or os.getenv("DEEPL_API_KEY")
-
+DEEPL_KEY  = os.getenv("DEEPL_API_KEY")
 # ————— Helpers —————
 
 def parse_sections(content):
