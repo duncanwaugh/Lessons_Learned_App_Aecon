@@ -6,7 +6,7 @@ from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 from dotenv import load_dotenv
 from openai import OpenAI
-from docxtpl import DocxTemplate
+from docxtpl import DocxTemplate, InlineImage
 from docx import Document
 from docx.shared import Inches
 from PIL import Image as PILImage
@@ -199,27 +199,18 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
     tpl.save(out_path)
 
     # Insert images
-    doc = Document(out_path)
-    img_table = None
-    for tbl in doc.tables:
-        for cell in tbl._cells:
-            if "IMAGE_PLACEHOLDER" in cell.text:
-                img_table = tbl
-                break
-        if img_table:
-            break
-    if img_table:
-        tbl_elm = img_table._tbl
-        for row in list(img_table.rows):
-            tbl_elm.remove(row._tr)
-        for i in range(0, len(images), 2):
-            row = img_table.add_row().cells
-            for j in (0,1):
-                if i+j < len(images):
-                    row[j].paragraphs[0].add_run().add_picture(
-                        images[i+j], width=Inches(2.5)
-                    )
-    doc.save(out_path)
+    MAX_IMG = 10
+    for i in range(1, MAX_IMG+1):
+        key = f"IMAGE{i}"
+        if i <= len(images):
+            try:
+                with PILImage.open(images[i-1]) as im:
+                    im.verify()
+                context[key] = InlineImage(tpl, images[i-1], width=Inches(2.5))
+            except:
+                context[key] = ""
+        else:
+            context[key] = ""
 
 # ─── Streamlit UI ────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Aecon Lessons Learned Generator", page_icon="📘")
@@ -233,7 +224,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🦺 Serious Event Lessons Learned Generator")
+st.title("Serious Event Lessons Learned Generator")
 pptx_file = st.file_uploader("Upload Executive Review PPTX", type="pptx")
 lang = st.selectbox("Language:", ["English","French (Canadian)","Spanish"])
 translator = None
