@@ -183,6 +183,20 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
             continue
     images = verified
 
+        # filter out banner-like headers (very wide & short)
+    filtered = []
+    for img in images:
+        try:
+            with PILImage.open(img) as im:
+                w, h = im.size
+            # skip if width is more than 3x height (likely slide banner)
+            if h == 0 or w / h > 3:
+                continue
+            filtered.append(img)
+        except:
+            continue
+    images = filtered
+
     # Fill template
     tpl = DocxTemplate(tpl_path)
     context = {
