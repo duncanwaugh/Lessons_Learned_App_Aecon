@@ -7,6 +7,9 @@ from docx.shared import Inches
 from docxtpl import DocxTemplate, InlineImage
 from dotenv import load_dotenv
 from openai import OpenAI
+from docxtpl import DocxTemplate
+from docx import Document
+from docx.shared import Inches
 
 # ─── Load environment variables & secrets ──────────────────────────────────────
 load_dotenv()
@@ -113,13 +116,8 @@ def translate_to_french_deepl(text: str) -> str:
         st.error("DeepL translation failed")
         return text
 
-def render_with_docxtpl(sections: dict, template_path: str, output_path: str, image_paths: list[str]):
-    """
-    Populate a .docx template with Jinja placeholders using docxtpl.
-    Template placeholders must match these keys:
-      {{ TITLE }}, {{ SECTOR }}, {{ PROJECT }}, {{ DATE }}, {{ EVENT_TYPE }},
-      {{ SUMMARY }}, {% for f in FACTORS %}, {% for l in LESSONS %}, {% for pic in IMAGES %}
-    """
+def render_with_docxtpl(sections, template_path, output_path, image_paths):
+    # 1) Fill in the Jinja placeholders in your docx template
     tpl = DocxTemplate(template_path)
     context = {
         "TITLE":      sections.get("Title", [""])[0],
@@ -130,8 +128,28 @@ def render_with_docxtpl(sections: dict, template_path: str, output_path: str, im
         "SUMMARY":    " ".join(sections.get("Event Summary", [])),
         "FACTORS":    sections.get("Contributing Factors", []),
         "LESSONS":    sections.get("Lessons Learned", []),
-        "IMAGES":     [],
+        # We no longer pass IMAGES into Jinja
     }
+    tpl.render(context)
+    tpl.save(output_path)
+
+    # 2) Now re-open that file with python-docx and tack on the images
+    doc = Document(output_path)
+    if image_paths:
+        doc.add_page_break()
+        doc.add_heading("Supporting Pictures", level=2)
+        table = doc.add_table(rows=0, cols=2)
+        for i in range(0, len(image_paths), 2):
+            row = table.add_row().cells
+            for j in (0,1):
+                if i + j < len(image_paths):
+                    try:
+                        row[j].paragraphs[0].add_run().add_picture(
+                            image_paths[i+j], width=Inches(2.5)
+                        )
+                    except Exception:
+                        row[j].text = "[Image failed to load]"
+    doc.save(output_path)
     # Convert image paths to InlineImage objects
     for img in image_paths:
         context["IMAGES"].append(InlineImage(tpl, img, width=Inches(2.5)))
