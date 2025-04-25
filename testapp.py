@@ -195,8 +195,7 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
         "FACTORS":  "\n".join(f"{f}" for f in secs.get("Contributing Factors", [])),
         "LESSONS":  "\n".join(f"{l}" for l in secs.get("Lessons Learned", [])),
     }
-    tpl.render(context)
-    tpl.save(out_path)
+
 
     # Insert images
     MAX_IMG = 10
@@ -211,6 +210,9 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
                 context[key] = ""
         else:
             context[key] = ""
+
+    tpl.render(context)
+    tpl.save(out_path)
 
 # ─── Streamlit UI ────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Aecon Lessons Learned Generator", page_icon="📘")
