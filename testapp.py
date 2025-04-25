@@ -10,9 +10,8 @@ from openai import OpenAI
 
 # ————— Load ENV / Secrets —————
 load_dotenv()
-OPENAI_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 DEEPL_KEY  = st.secrets.get("DEEPL_API_KEY")  or os.getenv("DEEPL_API_KEY")
-client = OpenAI(api_key=OPENAI_KEY)
 
 # ————— Helpers —————
 
