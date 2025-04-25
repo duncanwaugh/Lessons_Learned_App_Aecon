@@ -9,6 +9,7 @@ from openai import OpenAI
 from docxtpl import DocxTemplate
 from docx import Document
 from docx.shared import Inches
+from PIL import Image as PILImage
 
 # ─── Load API keys ────────────────────────────────────────────────────────────
 load_dotenv()
@@ -111,6 +112,21 @@ def parse_sections(out: str) -> dict:
 
 # ─── Render via docxtpl + insert images into template table ───────────────────
 def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[str]):
+    # Filter and verify common image types
+    valid_exts = {'.png','.jpg','.jpeg','.bmp','.gif'}
+    verified = []
+    for img in images:
+        ext = os.path.splitext(img)[1].lower()
+        if ext not in valid_exts:
+            continue
+        try:
+            with PILImage.open(img) as im:
+                im.verify()
+            verified.append(img)
+        except:
+            continue
+    images = verified
+
     # Fill placeholders
     tpl = DocxTemplate(tpl_path)
     context = {
@@ -145,8 +161,12 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
             row = img_table.add_row().cells
             for j in (0,1):
                 if i+j < len(images):
-                    run = row[j].paragraphs[0].add_run()
-                    run.add_picture(images[i+j], width=Inches(2.5))
+                    try:
+                        row[j].paragraphs[0].add_run().add_picture(
+                            images[i+j], width=Inches(2.5)
+                        )
+                    except:
+                        row[j].text = "[Image not supported]"
     doc.save(out_path)
 
 # ─── Streamlit UI ────────────────────────────────────────────────────────────
@@ -161,7 +181,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("Serious Event Lessons Learned Generator")
+st.title("🦺 Serious Event Lessons Learned Generator")
 pptx_file = st.file_uploader("Upload Executive Review PPTX", type="pptx")
 lang      = st.selectbox("Language:", ["English","French (Canadian)"])
 translator= None
@@ -169,22 +189,18 @@ if lang.startswith("French"):
     translator = st.radio("Translate via:", ["OpenAI","DeepL"])  
 
 if pptx_file and st.button("📄 Generate DOCX"):
-    # Save upload\    
     os.makedirs("input", exist_ok=True)
     in_fp = f"input/{pptx_file.name}"
     with open(in_fp, "wb") as f: f.write(pptx_file.getbuffer())
 
-    # Extract & GPT
     raw_text, images = extract_text_and_images_from_pptx(in_fp)
     generated = summarize_and_extract(raw_text)
 
-    # Translate
     if lang.startswith("French"):
         generated = (translate_to_french_openai(generated)
                      if translator=="OpenAI"
                      else translate_to_french_deepl(generated))
 
-    # Parse & render
     secs   = parse_sections(generated)
     out_fp = f"lessons_learned_{lang[:2].lower()}.docx"
     render_with_docxtpl(
@@ -194,14 +210,12 @@ if pptx_file and st.button("📄 Generate DOCX"):
         images
     )
 
-    # Download
     with open(out_fp, "rb") as f:
         st.download_button(
             "📥 Download DOCX", f, out_fp,
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
 
-# Footer
 st.markdown("""
 <hr style="border:none;height:2px;background:#c8102e;"/>
 <div style="text-align:center;padding:10px;background:#c8102e;color:#fff;">
