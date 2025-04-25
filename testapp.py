@@ -10,8 +10,8 @@ from openai import OpenAI
 
 # ─── Load environment variables & secrets ──────────────────────────────────────
 load_dotenv()
-OPENAI_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
-DEEPL_KEY  = st.secrets.get("DEEPL_API_KEY")  or os.getenv("DEEPL_API_KEY")
+OPENAI_KEY = os.getenv("OPENAI_API_KEY")
+DEEPL_KEY  = os.getenv("DEEPL_API_KEY")
 if not OPENAI_KEY:
     st.error("OpenAI API key not found! Please set OPENAI_API_KEY in Streamlit secrets or .env")
 client = OpenAI(api_key=OPENAI_KEY)
