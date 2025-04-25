@@ -68,10 +68,10 @@ Here is the presentation text:
 {text}
 """
     r = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4",
         messages=[{"role":"user","content":prompt}],
         temperature=0.2,
-        max_tokens=1000,
+        max_tokens=1500,
     )
     return r.choices[0].message.content.strip()
 
