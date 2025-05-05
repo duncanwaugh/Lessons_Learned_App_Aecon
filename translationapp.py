@@ -130,7 +130,7 @@ def parse_sections(out: str) -> dict:
     import re
     labels = [
         "Title", "Aecon Business Sector", "Project/Location",
-        "Date of Event", "Event Type","Event Summary Header" "Event Summary",
+        "Date of Event", "Event Type","Event Summary Header", "Event Summary",
         "Contributing Factors", "Lessons Learned",
     ]
     sections = {}
