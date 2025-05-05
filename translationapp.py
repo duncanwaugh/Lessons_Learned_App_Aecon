@@ -49,19 +49,20 @@ def extract_text_and_images_from_pptx(path: str):
 
 # ─── OpenAI extraction with detailed summary ──────────────────────────────────
 def summarize_and_extract(text: str) -> str:
-    system_msg = ("You are a concise safety-report writer for Aecon.")
+    system_msg = ("You are a concise safety-report writer for Aecon."
+                  "You use the presentation text given to write sophisticated")
     prompt = f"""
 You are preparing a Lessons Learned report from a serious incident.  Use **plain**, **easy‑to‑understand** language and a **neutral, positive** tone.
 
 for contributing factors and lessons learned use bullet lists only, one idea per line, avoid technical jargon and blaming, keep it factual, clear and solution oriented.
 Produce each section clearly labeled with exactly these labels (and nothing else):
 
-Title: (Keep it very concise (3–4 words) summarizing the core event)  
+Title: (Keep it very concise (3–5 words) summarizing the core event)  
 Aecon Business Sector:  
 Project/Location:  
 Date of Event:  
 Event Type:  
-Event Summary Header: (One sentence that captures the essence of what happened) 
+Event Summary Header: (One detailed sentence that captures the essence of what happened) 
 Event Summary:  (Write a detailed, multi‑paragraph narrative covering:  Background and context, Step‑by‑step sequence of events, Immediate outcome and injuries/damages, Broader impacts (delays, reputation, etc.))
 Contributing Factors:  (avoid any technical terms)
 Lessons Learned:   (avoid any technical terms)
