@@ -121,35 +121,62 @@ def translate_to_deepl(text: str, lang: str) -> str:
 
 # ─── Parse GPT output into dict ─────────────────────────────────────────────────
 def parse_sections(out: str) -> dict:
-    """
-    Split GPT output into labeled sections, handling both:
-      - “Label:” on its own line with subsequent lines
-      - “Label: value” on a single line
-    """
     import re
-    labels = [
-        "Title", "Aecon Business Sector", "Project/Location",
-        "Date of Event", "Event Type","Event Summary Header", "Event Summary",
-        "Contributing Factors", "Lessons Learned",
-    ]
+
+    # map any seen header (English or French) to our internal English key
+    label_map = {
+        # English
+        "Title": "Title",
+        "Aecon Business Sector": "Aecon Business Sector",
+        "Project/Location": "Project/Location",
+        "Date of Event": "Date of Event",
+        "Event Type": "Event Type",
+        "Event Summary Header": "Event Summary Header",
+        "Event Summary": "Event Summary",
+        "Contributing Factors": "Contributing Factors",
+        "Lessons Learned": "Lessons Learned",
+        # French
+        "Titre": "Title",
+        "Secteur d'activité d'Aecon": "Aecon Business Sector",
+        "Secteur d’activité d’Aecon": "Aecon Business Sector",
+        "Projet/Emplacement": "Project/Location",
+        "Projet/Lieu": "Project/Location",
+        "Date de l'événement": "Date of Event",
+        "Type d'événement": "Event Type",
+        "En-tête du résumé de l'événement": "Event Summary Header",
+        "En‑tête du résumé de l’événement": "Event Summary Header",
+        "Résumé de l'événement": "Event Summary",
+        "Facteurs contributifs": "Contributing Factors",
+        "Leçons apprises": "Lessons Learned",
+    }
+
     sections = {}
     current = None
-    # matches “Label: rest-of-line”
-    pat = re.compile(r'^([^:]+):\s*(.*)$')
+    pattern = re.compile(r'^([^:]+):\s*(.*)$')
+
     for line in out.splitlines():
         line = line.strip()
         if not line:
             continue
-        m = pat.match(line)
-        if m and m.group(1) in labels:
-            key, rest = m.group(1), m.group(2)
-            sections[key] = []
-            if rest:
-                sections[key].append(rest)
-            current = key
-        elif current:
+
+        m = pattern.match(line)
+        if m:
+            raw_label, rest = m.group(1), m.group(2)
+            key = label_map.get(raw_label)
+            if key:
+                # start a new section
+                sections[key] = []
+                if rest:
+                    sections[key].append(rest)
+                current = key
+                continue
+
+        # if it wasn’t a new header but we’re in a section, append
+        if current:
             sections[current].append(line)
+
     return sections
+
 
 # ─── Render + insert images into template ──────────────────────────────────────
 def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[str]):
