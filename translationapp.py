@@ -123,60 +123,63 @@ def translate_to_deepl(text: str, lang: str) -> str:
 def parse_sections(out: str) -> dict:
     import re
 
-    # map any seen header (English or French) to our internal English key
+    # map any seen heading (English or French) → our internal English key
     label_map = {
         # English
-        "Title": "Title",
-        "Aecon Business Sector": "Aecon Business Sector",
-        "Project/Location": "Project/Location",
-        "Date of Event": "Date of Event",
-        "Event Type": "Event Type",
-        "Event Summary Header": "Event Summary Header",
-        "Event Summary": "Event Summary",
-        "Contributing Factors": "Contributing Factors",
-        "Lessons Learned": "Lessons Learned",
+        "Title":                   "Title",
+        "Aecon Business Sector":   "Aecon Business Sector",
+        "Project/Location":        "Project/Location",
+        "Date of Event":           "Date of Event",
+        "Event Type":              "Event Type",
+        "Event Summary Header":    "Event Summary Header",
+        "Event Summary":           "Event Summary",
+        "Contributing Factors":    "Contributing Factors",
+        "Lessons Learned":         "Lessons Learned",
+
         # French
-        "Titre": "Title",
-        "Secteur d'activité d'Aecon": "Aecon Business Sector",
-        "Secteur d’activité d’Aecon": "Aecon Business Sector",
-        "Secteur d'activité Aecon": "Aecon Business Sector",
-        "Projet/Emplacement": "Project/Location",
-        "Projet/Lieu": "Project/Location",
-        "Date de l'événement": "Date of Event",
-        "Type d'événement": "Event Type",
+        "Titre":                   "Title",
+        "Secteur d'activité d'Aecon":    "Aecon Business Sector",
+        "Secteur d’activité d’Aecon":    "Aecon Business Sector",
+        "Secteur d'activité Aecon":      "Aecon Business Sector",
+        "Projet/Emplacement":     "Project/Location",
+        "Projet/Lieu":            "Project/Location",
+        "Date de l'événement":    "Date of Event",
+        "Type d'événement":       "Event Type",
         "En-tête du résumé de l'événement": "Event Summary Header",
         "En‑tête du résumé de l’événement": "Event Summary Header",
-        "Résumé de l'événement": "Event Summary",
-        "Facteurs contributifs": "Contributing Factors",
-        "Leçons apprises": "Lessons Learned",
+        "Résumé de l'événement":  "Event Summary",
+        "Facteurs contributifs":  "Contributing Factors",
+        "Leçons apprises":        "Lessons Learned",
+        "Leçons tirées":          "Lessons Learned",
     }
 
     sections = {}
     current = None
-    pattern = re.compile(r'^([^:]+):\s*(.*)$')
-
+    # capture “Label: optional value”
+    pat = re.compile(r'^([^:]+):\s*(.*)$')
     for line in out.splitlines():
         line = line.strip()
         if not line:
             continue
 
-        m = pattern.match(line)
+        m = pat.match(line)
         if m:
-            raw_label, rest = m.group(1), m.group(2)
+            raw_label = m.group(1).strip()        # strip off any trailing spaces
+            rest      = m.group(2).strip()
             key = label_map.get(raw_label)
             if key:
-                # start a new section
                 sections[key] = []
                 if rest:
                     sections[key].append(rest)
                 current = key
                 continue
 
-        # if it wasn’t a new header but we’re in a section, append
+        # if we’re inside a section, append any non‐header lines
         if current:
             sections[current].append(line)
 
     return sections
+
 
 
 # ─── Render + insert images into template ──────────────────────────────────────
