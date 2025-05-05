@@ -53,7 +53,7 @@ def summarize_and_extract(text: str) -> str:
                 "Write in clear, concise, neutral language. "
                 "Avoid blaming individuals; focus on facts")
     prompt = f"""
-You are preparing a Lessons Learned handout – use these exact section headers (nothing else):
+You are preparing a Lessons Learned handout – use these **exact** section labels (nothing else):
 
 Title:               (Keep this very short—up to 6 words—summarizing the incident. Doesn't need to include the words Serious Event Review)
 Aecon Business Sector:
@@ -61,11 +61,8 @@ Project/Location:
 Date of Event:
 Event Type:
 Event Summary Header:   (One sentence, max 12 words, that captures the essence of what happened.)
-
 Event Summary:          (A multi‑paragraph narrative covering background, steps, outcome, and impacts.)
-
 Contributing Factors:    (Bullet list; simple, non‑technical, neutral tone.  Do not assign blame.)
-
 Lessons Learned:        (Bullet list; phrased positively, focused on improvements and prevention. Avoid “you” or “they.”)
 
 Here is the presentation text:
@@ -77,8 +74,8 @@ Here is the presentation text:
             {"role":"system","content":system_msg},
             {"role":"user","content":prompt}
         ],
-        temperature=0.2,
-        max_tokens=1000,
+        temperature=0.1,
+        max_tokens=750,
     )
     return r.choices[0].message.content.strip()
 
