@@ -55,7 +55,7 @@ def summarize_and_extract(text: str) -> str:
     prompt = f"""
 You are preparing a Lessons Learned handout – use these exact section headers (nothing else):
 
-Title:               (Keep this very short—up to 6 words—summarizing the incident.)
+Title:               (Keep this very short—up to 6 words—summarizing the incident. Doesn't need to include the words Serious Event Review)
 Aecon Business Sector:
 Project/Location:
 Date of Event:
@@ -73,7 +73,7 @@ Here is the presentation text:
 {text}
 """
     r = client.chat.completions.create(
-        model="gpt-4",
+        model="gpt-3.5 turbo",
         messages=[
             {"role":"system","content":system_msg},
             {"role":"user","content":prompt}
