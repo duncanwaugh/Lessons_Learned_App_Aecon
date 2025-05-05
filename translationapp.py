@@ -49,51 +49,41 @@ def extract_text_and_images_from_pptx(path: str):
 
 # ─── OpenAI extraction with detailed summary ──────────────────────────────────
 def summarize_and_extract(text: str) -> str:
-    system_msg = "You are a concise safety-report writer for Aecon."
+    system_msg = ("You are a concise safety-report writer for Aecon."
+                "Write in clear, concise, neutral language. "
+                "Avoid blaming individuals; focus on facts")
     prompt = f"""
-You are preparing a formal Lessons Learned report from a serious incident.
+You are preparing a Lessons Learned handout – use these **exact** section labels (nothing else) and be sure to include the Event Summary Header:
 
-**Produce each section clearly labeled.**  
-For the **Event Summary**, write a detailed multi-paragraph narrative covering:
-  1. Background/context  
-  2. Step-by-step sequence of events  
-  3. Immediate outcome and injuries/damages  
-  4. Broader impacts (delays, reputation, etc.)
+Output format (fill in the brackets verbatim):
 
-For **Contributing Factors** and **Lessons Learned**, use a true bullet list:  
-- One factor per line prefixed with a hyphen and a space  
-- E.g.:
-
-Contributing Factors:
-- Factor one
-- Factor two
-- Factor three
-
-Lessons Learned:
-- Lesson one
-- Lesson two
-
-Use these exact labels (and nothing else) so your parser can pick them up:
-Title:
-Aecon Business Sector:
-Project/Location:
-Date of Event:
-Event Type:
+Title: [Up to 6 words summarizing the incident]
+Aecon Business Sector: [ … ]
+Project/Location: [ … ]
+Date of Event: [ … ]
+Event Type: [ … ]
+Event Summary Header: [One sentence, max 12 words, essence of what happened]
 Event Summary:
+[Paragraph 1]
+[Paragraph 2]
 Contributing Factors:
+- [Bullet 1]
+- [Bullet 2]
 Lessons Learned:
+- [Bullet 1]
+- [Bullet 2]
 
 Here is the presentation text:
 {text}
 """
     r = client.chat.completions.create(
-        model="gpt-4",
+        model="gpt-3.5 turbo",
         messages=[
             {"role":"system","content":system_msg},
             {"role":"user","content":prompt}
         ],
         temperature=0.2,
-        max_tokens=1500,
+        max_tokens=1000,
     )
     return r.choices[0].message.content.strip()
 
@@ -144,7 +134,7 @@ def parse_sections(out: str) -> dict:
     import re
     labels = [
         "Title", "Aecon Business Sector", "Project/Location",
-        "Date of Event", "Event Type", "Event Summary",
+        "Date of Event", "Event Type","Event Summary Header" "Event Summary",
         "Contributing Factors", "Lessons Learned",
     ]
     sections = {}
@@ -205,6 +195,7 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
         "PROJECT":" ".join(secs.get("Project/Location", [])),
         "DATE":   " ".join(secs.get("Date of Event", [])),
         "EVENT_TYPE":" ".join(secs.get("Event Type", [])),
+        "SUMMARY_HEADER": secs.get("Event Summary Header", [""])[0],
         "SUMMARY":  " \n".join(secs.get("Event Summary", [])),
         "FACTORS":  "\n".join(f"{f}" for f in secs.get("Contributing Factors", [])),
         "LESSONS":  "\n".join(f"{l}" for l in secs.get("Lessons Learned", [])),
