@@ -55,35 +55,19 @@ def summarize_and_extract(text: str) -> str:
     prompt = f"""
 You are preparing a Lessons Learned report from a serious incident.  Use **plain**, **easy‑to‑understand** language and a **neutral, positive** tone.
 
-**Produce each section clearly labeled** with exactly these labels (and nothing else):
+for contributing factors and lessons learned use bullet lists only, one idea per line, avoid technical jargon and blaming, keep it factual, clear and solution oriented.
+Produce each section clearly labeled with exactly these labels (and nothing else):
 
-Title:  
+Title: (Keep it very concise (3–6 words) summarizing the core event)  
 Aecon Business Sector:  
 Project/Location:  
 Date of Event:  
 Event Type:  
-Event Summary Header:  
-Event Summary:  
+Event Summary Header: (One sentence that captures the essence of what happened) 
+Event Summary:  (Write a detailed, multi‑paragraph narrative covering:  Background and context, Step‑by‑step sequence of events, Immediate outcome and injuries/damages, Broader impacts (delays, reputation, etc.))
 Contributing Factors:  
 Lessons Learned:  
 
-**Title:**  
-• Keep it very concise (3–6 words) summarizing the core event.
-
-**Event Summary Header:**  
-• One sentence that captures the essence of what happened.
-
-**Event Summary:**  
-Write a detailed, multi‑paragraph narrative covering:  
-  1. Background and context  
-  2. Step‑by‑step sequence of events  
-  3. Immediate outcome and injuries/damages  
-  4. Broader impacts (delays, reputation, etc.)
-
-**Contributing Factors** and **Lessons Learned:**  
-• Use bullet lists only.  
-• One idea per line, prefixed with “- ”.  
-• Avoid technical jargon and any blaming language—keep it factual, clear, and solution‑oriented.
 
 Here is the presentation text to parse into those sections:
 {text}
