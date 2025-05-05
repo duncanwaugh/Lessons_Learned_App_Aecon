@@ -65,6 +65,10 @@ Event Summary:          (A short multi‑paragraph narrative covering background
 Contributing Factors:    (Bullet list; simple, non‑technical, neutral tone.  Do not assign blame.)
 Lessons Learned:        (Bullet list; phrased positively, focused on improvements and prevention. Avoid “you” or “they.”)
 
+Here’s a minimal example of the new header:
+
+Event Summary Header: Pump fell 18’4″ and struck a worker’s hard hat.
+
 Here is the presentation text:
 {text}
 """
