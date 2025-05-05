@@ -139,6 +139,7 @@ def parse_sections(out: str) -> dict:
         "Titre": "Title",
         "Secteur d'activité d'Aecon": "Aecon Business Sector",
         "Secteur d’activité d’Aecon": "Aecon Business Sector",
+        "Secteur d'activité Aecon": "Aecon Business Sector",
         "Projet/Emplacement": "Project/Location",
         "Projet/Lieu": "Project/Location",
         "Date de l'événement": "Date of Event",
