@@ -53,27 +53,39 @@ def summarize_and_extract(text: str) -> str:
                 "Write in clear, concise, neutral language. "
                 "Avoid blaming individuals; focus on facts")
     prompt = f"""
-You are preparing a Lessons Learned handout – use these **exact** section labels (nothing else) and be sure to include the Event Summary Header:
+You are preparing a Lessons Learned report from a serious incident.  Use **plain**, **easy‑to‑understand** language and a **neutral, positive** tone.
 
-Output format (fill in the brackets verbatim):
+**Produce each section clearly labeled** with exactly these labels (and nothing else):
 
-Title: [Up to 6 words summarizing the incident]
-Aecon Business Sector: [ … ]
-Project/Location: [ … ]
-Date of Event: [ … ]
-Event Type: [ … ]
-Event Summary Header: [One sentence, max 12 words, essence of what happened]
-Event Summary:
-[Paragraph 1]
-[Paragraph 2]
-Contributing Factors:
-- [Bullet 1]
-- [Bullet 2]
-Lessons Learned:
-- [Bullet 1]
-- [Bullet 2]
+Title:  
+Aecon Business Sector:  
+Project/Location:  
+Date of Event:  
+Event Type:  
+Event Summary Header:  
+Event Summary:  
+Contributing Factors:  
+Lessons Learned:  
 
-Here is the presentation text:
+**Title:**  
+• Keep it very concise (3–6 words) summarizing the core event.
+
+**Event Summary Header:**  
+• One sentence that captures the essence of what happened.
+
+**Event Summary:**  
+Write a detailed, multi‑paragraph narrative covering:  
+  1. Background and context  
+  2. Step‑by‑step sequence of events  
+  3. Immediate outcome and injuries/damages  
+  4. Broader impacts (delays, reputation, etc.)
+
+**Contributing Factors** and **Lessons Learned:**  
+• Use bullet lists only.  
+• One idea per line, prefixed with “- ”.  
+• Avoid technical jargon and any blaming language—keep it factual, clear, and solution‑oriented.
+
+Here is the presentation text to parse into those sections:
 {text}
 """
     r = client.chat.completions.create(
