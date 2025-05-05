@@ -49,9 +49,7 @@ def extract_text_and_images_from_pptx(path: str):
 
 # ─── OpenAI extraction with detailed summary ──────────────────────────────────
 def summarize_and_extract(text: str) -> str:
-    system_msg = ("You are a concise safety-report writer for Aecon."
-                "Write in clear, concise, neutral language. "
-                "Avoid blaming individuals; focus on facts")
+    system_msg = ("You are a concise safety-report writer for Aecon.")
     prompt = f"""
 You are preparing a Lessons Learned report from a serious incident.  Use **plain**, **easy‑to‑understand** language and a **neutral, positive** tone.
 
@@ -65,8 +63,8 @@ Date of Event:
 Event Type:  
 Event Summary Header: (One sentence that captures the essence of what happened) 
 Event Summary:  (Write a detailed, multi‑paragraph narrative covering:  Background and context, Step‑by‑step sequence of events, Immediate outcome and injuries/damages, Broader impacts (delays, reputation, etc.))
-Contributing Factors:  
-Lessons Learned:  
+Contributing Factors:  (avoid any technical terms)
+Lessons Learned:   (avoid any technical terms)
 
 
 Here is the presentation text to parse into those sections:
