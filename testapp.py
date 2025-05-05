@@ -197,6 +197,11 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
             continue
     images = filtered
 
+    summary_lines = secs.get("Event Summary", [])
+    summary_text  = " ".join(summary_lines)
+    idx = summary_text.find(".")
+    header = (summary_text[:idx+1] if idx != -1 else summary_text).strip()
+
     # Fill template
     tpl = DocxTemplate(tpl_path)
     context = {
@@ -205,6 +210,7 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
         "PROJECT":" ".join(secs.get("Project/Location", [])),
         "DATE":   " ".join(secs.get("Date of Event", [])),
         "EVENT_TYPE":" ".join(secs.get("Event Type", [])),
+        "SUMMARY_HEADER": header,
         "SUMMARY":  " \n".join(secs.get("Event Summary", [])),
         "FACTORS":  "\n".join(f"{f}" for f in secs.get("Contributing Factors", [])),
         "LESSONS":  "\n".join(f"{l}" for l in secs.get("Lessons Learned", [])),
