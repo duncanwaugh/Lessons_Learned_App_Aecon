@@ -79,6 +79,7 @@ Aecon Business Sector:
 Project/Location:
 Date of Event:
 Event Type:
+Event Summary Header:
 Event Summary:
 Contributing Factors:
 Lessons Learned:
@@ -144,7 +145,7 @@ def parse_sections(out: str) -> dict:
     import re
     labels = [
         "Title", "Aecon Business Sector", "Project/Location",
-        "Date of Event", "Event Type", "Event Summary",
+        "Date of Event", "Event Type","Event Summary Header", "Event Summary",
         "Contributing Factors", "Lessons Learned",
     ]
     sections = {}
@@ -197,11 +198,6 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
             continue
     images = filtered
 
-    summary_lines = secs.get("Event Summary", [])
-    summary_text  = " ".join(summary_lines)
-    idx = summary_text.find(".")
-    header = (summary_text[:idx+1] if idx != -1 else summary_text).strip()
-
     # Fill template
     tpl = DocxTemplate(tpl_path)
     context = {
@@ -210,7 +206,7 @@ def render_with_docxtpl(secs: dict, tpl_path: str, out_path: str, images: list[s
         "PROJECT":" ".join(secs.get("Project/Location", [])),
         "DATE":   " ".join(secs.get("Date of Event", [])),
         "EVENT_TYPE":" ".join(secs.get("Event Type", [])),
-        "SUMMARY_HEADER": header,
+        "SUMMARY_HEADER": secs.get("Event Summary Header", [""])[0],
         "SUMMARY":  " \n".join(secs.get("Event Summary", [])),
         "FACTORS":  "\n".join(f"{f}" for f in secs.get("Contributing Factors", [])),
         "LESSONS":  "\n".join(f"{l}" for l in secs.get("Lessons Learned", [])),
