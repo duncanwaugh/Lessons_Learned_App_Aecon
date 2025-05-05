@@ -58,7 +58,7 @@ You are preparing a Lessons Learned report from a serious incident.  Use **plain
 for contributing factors and lessons learned use bullet lists only, one idea per line, avoid technical jargon and blaming, keep it factual, clear and solution oriented.
 Produce each section clearly labeled with exactly these labels (and nothing else):
 
-Title: (Keep it very concise (3–6 words) summarizing the core event)  
+Title: (Keep it very concise (3–4 words) summarizing the core event)  
 Aecon Business Sector:  
 Project/Location:  
 Date of Event:  
