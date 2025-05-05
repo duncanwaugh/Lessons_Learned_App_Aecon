@@ -60,7 +60,6 @@ Aecon Business Sector:
 Project/Location:
 Date of Event:
 Event Type:
-
 Event Summary Header:   (One sentence, max 12 words, that captures the essence of what happened.)
 
 Event Summary:          (A multi‑paragraph narrative covering background, steps, outcome, and impacts.)
@@ -79,7 +78,7 @@ Here is the presentation text:
             {"role":"user","content":prompt}
         ],
         temperature=0.2,
-        max_tokens=1500,
+        max_tokens=1000,
     )
     return r.choices[0].message.content.strip()
 
