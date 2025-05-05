@@ -55,19 +55,23 @@ def summarize_and_extract(text: str) -> str:
     prompt = f"""
 You are preparing a Lessons Learned handout – use these **exact** section labels (nothing else) and be sure to include the Event Summary Header:
 
-Title:               (Keep this very short—up to 6 words—summarizing the incident. Doesn't need to include the words Serious Event Review)
-Aecon Business Sector:
-Project/Location:
-Date of Event:
-Event Type:
-Event Summary Header:   (One sentence, max 12 words, that captures the essence of what happened.)
-Event Summary:          (A short multi‑paragraph narrative covering background, steps, outcome, and impacts.)
-Contributing Factors:    (Bullet list; simple, non‑technical, neutral tone.  Do not assign blame.)
-Lessons Learned:        (Bullet list; phrased positively, focused on improvements and prevention. Avoid “you” or “they.”)
+Output format (fill in the brackets verbatim):
 
-Here’s a minimal example of the new header:
-
-Event Summary Header: Pump fell 18’4″ and struck a worker’s hard hat.
+Title: [Up to 6 words summarizing the incident]
+Aecon Business Sector: [ … ]
+Project/Location: [ … ]
+Date of Event: [ … ]
+Event Type: [ … ]
+Event Summary Header: [One sentence, max 12 words, essence of what happened]
+Event Summary:
+[Paragraph 1]
+[Paragraph 2]
+Contributing Factors:
+- [Bullet 1]
+- [Bullet 2]
+Lessons Learned:
+- [Bullet 1]
+- [Bullet 2]
 
 Here is the presentation text:
 {text}
