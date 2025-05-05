@@ -277,7 +277,14 @@ if pptx_file and st.button("📄 Generate DOCX"):
     progress.progress(75)
     secs = parse_sections(generated)
     out_fp = f"lessons_learned_{lang[:2].lower()}.docx"
-    render_with_docxtpl(secs, "lessons learned template.docx", out_fp, images)
+    if lang.startswith("French"):
+        tpl_path = "lessons learned template fr.docx"
+    else:
+        tpl_path = "lessons learned template.docx"
+    render_with_docxtpl(secs, tpl_path, out_fp, images)
+
+    
+    # render_with_docxtpl(secs, "lessons learned template.docx", out_fp, images)
 
     # 5) done
     progress.progress(100)
