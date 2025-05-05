@@ -49,32 +49,25 @@ def extract_text_and_images_from_pptx(path: str):
 
 # ─── OpenAI extraction with detailed summary ──────────────────────────────────
 def summarize_and_extract(text: str) -> str:
-    system_msg = "You are a concise safety-report writer for Aecon."
+    system_msg = ("You are a concise safety-report writer for Aecon."
+                "Write in clear, concise, neutral language. "
+                "Avoid blaming individuals; focus on facts")
     prompt = f"""
-You are preparing a formal Lessons Learned report from a serious incident.
+You are preparing a Lessons Learned handout – use these exact section headers (nothing else):
 
-**Produce each section clearly labeled.**  
-Also produce a single-sentence summary header labeled `Event Summary Header:` that captures the essence of the event.
-
-Use these exact labels (and nothing else):
-Title:
+Title:               (Keep this very short—up to 6 words—summarizing the incident.)
 Aecon Business Sector:
 Project/Location:
 Date of Event:
 Event Type:
-Event Summary Header:
-Event Summary:
-Contributing Factors:
-Lessons Learned:
 
-For the **Event Summary**, write a detailed multi-paragraph narrative covering:
-  1. Background/context  
-  2. Step-by-step sequence of events  
-  3. Immediate outcome and injuries/damages  
-  4. Broader impacts (delays, reputation, etc.)
+Event Summary Header:   (One sentence, max 12 words, that captures the essence of what happened.)
 
-For **Contributing Factors** and **Lessons Learned**, use a true bullet list:
-- One factor per line prefixed with a hyphen and a space  
+Event Summary:          (A multi‑paragraph narrative covering background, steps, outcome, and impacts.)
+
+Contributing Factors:    (Bullet list; simple, non‑technical, neutral tone.  Do not assign blame.)
+
+Lessons Learned:        (Bullet list; phrased positively, focused on improvements and prevention. Avoid “you” or “they.”)
 
 Here is the presentation text:
 {text}
